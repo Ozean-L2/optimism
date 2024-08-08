@@ -66,6 +66,12 @@ contract CommonTest is Test, Setup, Events {
         Setup.L2();
     }
 
+    modifier prank(address _user) {
+        vm.startPrank(_user);
+        _;
+        vm.stopPrank();
+    }
+
     /// @dev Helper function that wraps `TransactionDeposited` event.
     ///      The magic `0` is the version.
     function emitTransactionDeposited(

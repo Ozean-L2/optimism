@@ -10,3 +10,11 @@ contract TestERC20 is ERC20 {
         _mint(to, value);
     }
 }
+
+contract TestERC20Decimals is ERC20 {
+    constructor(uint8 _decimals) ERC20("TEST", "TST", _decimals) { }
+
+    function mint(address to, uint256 value) public {
+        _mint(to, value);
+    }
+}

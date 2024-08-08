@@ -24,6 +24,7 @@ import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
 import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
+import { USDXBridge } from "src/L1/USDXBridge.sol";
 import { DeployConfig } from "scripts/DeployConfig.s.sol";
 import { Deploy } from "scripts/Deploy.s.sol";
 import { L2Genesis, L1Dependencies, OutputMode } from "scripts/L2Genesis.s.sol";
@@ -74,6 +75,7 @@ contract Setup {
     SuperchainConfig superchainConfig;
     DataAvailabilityChallenge dataAvailabilityChallenge;
     AnchorStateRegistry anchorStateRegistry;
+    USDXBridge usdxBridge;
 
     L2CrossDomainMessenger l2CrossDomainMessenger =
         L2CrossDomainMessenger(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER));
@@ -138,6 +140,7 @@ contract Setup {
         protocolVersions = ProtocolVersions(deploy.mustGetAddress("ProtocolVersionsProxy"));
         superchainConfig = SuperchainConfig(deploy.mustGetAddress("SuperchainConfigProxy"));
         anchorStateRegistry = AnchorStateRegistry(deploy.mustGetAddress("AnchorStateRegistryProxy"));
+        usdxBridge = USDXBridge(deploy.mustGetAddress("USDXBridgeProxy"));
 
         vm.label(address(l2OutputOracle), "L2OutputOracle");
         vm.label(deploy.mustGetAddress("L2OutputOracleProxy"), "L2OutputOracleProxy");
@@ -162,6 +165,8 @@ contract Setup {
         vm.label(deploy.mustGetAddress("ProtocolVersionsProxy"), "ProtocolVersionsProxy");
         vm.label(address(superchainConfig), "SuperchainConfig");
         vm.label(deploy.mustGetAddress("SuperchainConfigProxy"), "SuperchainConfigProxy");
+        vm.label(address(usdxBridge), "USDXBridge");
+        vm.label(deploy.mustGetAddress("USDXBridgeProxy"), "USDXBridgeProxy");
         vm.label(AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)), "L1CrossDomainMessenger_aliased");
 
         if (deploy.cfg().usePlasma()) {
