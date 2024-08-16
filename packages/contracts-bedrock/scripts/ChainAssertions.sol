@@ -162,6 +162,7 @@ library ChainAssertions {
             require(address(bridge.config()) == _contracts.SystemConfig);
             require(address(bridge.portal()) == _contracts.OptimismPortal);
             require(address(bridge.usdx()) == _cfg.customGasTokenAddress());
+            require(bridge.depositCap() == 1e30);
             require(bridge.allowlisted(_cfg.usdc()) == true);
             require(bridge.allowlisted(_cfg.usdt()) == true);
             require(bridge.allowlisted(_cfg.dai()) == true);
@@ -171,6 +172,7 @@ library ChainAssertions {
             require(address(bridge.portal()) == address(0));
             vm.expectRevert();
             bridge.usdx();
+            require(bridge.depositCap() == 0);
             require(bridge.allowlisted(_cfg.usdc()) == false);
             require(bridge.allowlisted(_cfg.usdt()) == false);
             require(bridge.allowlisted(_cfg.dai()) == false);

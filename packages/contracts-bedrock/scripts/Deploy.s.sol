@@ -1123,7 +1123,8 @@ contract Deploy is Deployer {
                     cfg.finalSystemOwner(),
                     OptimismPortal(payable(optimismPortalProxy)),
                     SystemConfig(systemConfigProxy),
-                    stablecoins
+                    stablecoins,
+                    1e30
                 )
             )
         });
