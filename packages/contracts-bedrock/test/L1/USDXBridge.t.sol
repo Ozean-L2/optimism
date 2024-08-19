@@ -16,8 +16,8 @@ contract USDXBridgeTest is CommonTest {
     TestERC20Decimals public dai;  /// 18 decimals
 
     /// USDX Bridge events
-    event BridgeDeposit(address indexed _stablecoin, uint256 indexed _amount, address indexed _to);
-    event WithdrawCoins(address indexed _coin, uint256 indexed _amount, address indexed _to);
+    event BridgeDeposit(address indexed _stablecoin, uint256 _amount, address indexed _to);
+    event WithdrawCoins(address indexed _coin, uint256 _amount, address indexed _to);
 
     function setUp() public override {
         /// @dev Mocks for each token

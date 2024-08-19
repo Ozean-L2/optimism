@@ -37,10 +37,10 @@ contract USDXBridge is OwnableUpgradeable, ReentrancyGuard, ISemver {
     uint256 public totalBridged;
 
     /// @notice An event emitted when a bridge deposit is made by a user.
-    event BridgeDeposit(address indexed _stablecoin, uint256 indexed _amount, address indexed _to);
+    event BridgeDeposit(address indexed _stablecoin, uint256 _amount, address indexed _to);
 
     /// @notice An event emitted when an ERC20 token is withdrawn from this contract.
-    event WithdrawCoins(address indexed _coin, uint256 indexed _amount, address indexed _to);
+    event WithdrawCoins(address indexed _coin, uint256 _amount, address indexed _to);
 
     /// INITIALIZE ///
 
