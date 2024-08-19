@@ -15,6 +15,10 @@ contract USDXBridgeTest is CommonTest {
     TestERC20Decimals public usdt; /// 6 decimals
     TestERC20Decimals public dai;  /// 18 decimals
 
+    /// USDX Bridge events
+    event BridgeDeposit(address indexed _stablecoin, uint256 indexed _amount, address indexed _to);
+    event WithdrawCoins(address indexed _coin, uint256 indexed _amount, address indexed _to);
+
     function setUp() public override {
         /// @dev Mocks for each token
         /// USDX: 0x640CB39e2D33Aa48EEE9AEC539420aF7Da72be8d
@@ -111,6 +115,12 @@ contract USDXBridgeTest is CommonTest {
             0,
             _getOpaqueData(usdxAmount, usdxAmount, 21000, false, "")
         );
+        vm.expectEmit(true, true, true, true);
+        emit BridgeDeposit(
+            address(usdc),
+            _amount,
+            alice
+        );
         usdxBridge.bridge(address(usdc), _amount, alice);
 
         assertEq(usdx.balanceOf(address(optimismPortal)), usdxAmount);
@@ -134,6 +144,12 @@ contract USDXBridgeTest is CommonTest {
             0,
             _getOpaqueData(usdxAmount, usdxAmount, 21000, false, "")
         );
+        vm.expectEmit(true, true, true, true);
+        emit BridgeDeposit(
+            address(usdt),
+            _amount,
+            alice
+        );
         usdxBridge.bridge(address(usdt), _amount, alice);
 
         assertEq(usdx.balanceOf(address(optimismPortal)), usdxAmount);
@@ -155,6 +171,12 @@ contract USDXBridgeTest is CommonTest {
             alice,
             0,
             _getOpaqueData(_amount, _amount, 21000, false, "")
+        );
+        vm.expectEmit(true, true, true, true);
+        emit BridgeDeposit(
+            address(dai),
+            _amount,
+            alice
         );
         usdxBridge.bridge(address(dai), _amount, alice);
 
@@ -194,6 +216,12 @@ contract USDXBridgeTest is CommonTest {
             alice,
             0,
             _getOpaqueData(usdxAmount, usdxAmount, 21000, false, "")
+        );
+        vm.expectEmit(true, true, true, true);
+        emit BridgeDeposit(
+            address(usde),
+            _amount,
+            alice
         );
         usdxBridge.bridge(address(usde), _amount, alice);
 
@@ -257,6 +285,12 @@ contract USDXBridgeTest is CommonTest {
         address owner = deploy.cfg().finalSystemOwner();
         vm.startPrank(owner);
 
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawCoins(
+            address(dai),
+            _amount,
+            owner
+        );
         usdxBridge.withdrawERC20(address(dai), _amount);
 
         vm.stopPrank();
@@ -291,6 +325,12 @@ contract USDXBridgeTest is CommonTest {
         address owner = deploy.cfg().finalSystemOwner();
         vm.startPrank(owner);
 
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawCoins(
+            address(usdc),
+            _amount,
+            owner
+        );
         usdxBridge.withdrawERC20(address(usdc), _amount);
 
         assertEq(usdc.balanceOf(address(usdxBridge)), 0);

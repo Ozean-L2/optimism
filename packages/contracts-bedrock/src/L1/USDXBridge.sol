@@ -36,6 +36,12 @@ contract USDXBridge is OwnableUpgradeable, ReentrancyGuard, ISemver {
     /// @notice The total amount of USDX bridged via this contract.
     uint256 public totalBridged;
 
+    /// @notice An event emitted when a bridge deposit is made by a user.
+    event BridgeDeposit(address indexed _stablecoin, uint256 indexed _amount, address indexed _to);
+
+    /// @notice An event emitted when an ERC20 token is withdrawn from this contract.
+    event WithdrawCoins(address indexed _coin, uint256 indexed _amount, address indexed _to);
+
     /// INITIALIZE ///
 
     constructor() {
@@ -109,6 +115,7 @@ contract USDXBridge is OwnableUpgradeable, ReentrancyGuard, ISemver {
             _isCreation: false,
             _data: ""
         });
+        emit BridgeDeposit( _stablecoin, _amount, _to);
     }
 
     /// OWNER ///
@@ -132,6 +139,7 @@ contract USDXBridge is OwnableUpgradeable, ReentrancyGuard, ISemver {
     /// @param  _amount The amount of tokens to withdraw.
     function withdrawERC20(address _coin, uint256 _amount) external onlyOwner {
         IERC20(_coin).transfer(msg.sender, _amount);
+        emit WithdrawCoins(_coin, _amount, msg.sender);
     }
 
     /// VIEW ///
