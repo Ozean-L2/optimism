@@ -32,6 +32,7 @@ import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { SystemConfigInterop } from "src/L1/SystemConfigInterop.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { DataAvailabilityChallenge } from "src/L1/DataAvailabilityChallenge.sol";
+import { USDXBridge} from "src/L1/USDXBridge.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
@@ -158,7 +159,8 @@ contract Deploy is Deployer {
             SystemConfig: mustGetAddress("SystemConfigProxy"),
             L1ERC721Bridge: mustGetAddress("L1ERC721BridgeProxy"),
             ProtocolVersions: mustGetAddress("ProtocolVersionsProxy"),
-            SuperchainConfig: mustGetAddress("SuperchainConfigProxy")
+            SuperchainConfig: mustGetAddress("SuperchainConfigProxy"),
+            USDXBridge: mustGetAddress("USDXBridgeProxy")
         });
     }
 
@@ -177,7 +179,8 @@ contract Deploy is Deployer {
             SystemConfig: getAddress("SystemConfigProxy"),
             L1ERC721Bridge: getAddress("L1ERC721BridgeProxy"),
             ProtocolVersions: getAddress("ProtocolVersionsProxy"),
-            SuperchainConfig: getAddress("SuperchainConfigProxy")
+            SuperchainConfig: getAddress("SuperchainConfigProxy"),
+            USDXBridge: getAddress("USDXBridgeProxy")
         });
     }
 
@@ -358,6 +361,7 @@ contract Deploy is Deployer {
 
         deployERC1967Proxy("OptimismPortalProxy");
         deployERC1967Proxy("SystemConfigProxy");
+        deployUSDXBridgeProxy();
         deployL1StandardBridgeProxy();
         deployL1CrossDomainMessengerProxy();
         deployERC1967Proxy("OptimismMintableERC20FactoryProxy");
@@ -380,6 +384,7 @@ contract Deploy is Deployer {
         deployL1CrossDomainMessenger();
         deployOptimismMintableERC20Factory();
         deploySystemConfig();
+        deployUSDXBridge();
         deployL1StandardBridge();
         deployL1ERC721Bridge();
         deployOptimismPortal();
@@ -407,6 +412,7 @@ contract Deploy is Deployer {
         }
 
         initializeSystemConfig();
+        initializeUSDXBridge();
         initializeL1StandardBridge();
         initializeL1ERC721Bridge();
         initializeOptimismMintableERC20Factory();
@@ -535,6 +541,19 @@ contract Deploy is Deployer {
     ////////////////////////////////////////////////////////////////
     //                Proxy Deployment Functions                  //
     ////////////////////////////////////////////////////////////////
+
+    /// @notice Deploy the USDX Bridge using a ChugSplashProxy
+    function deployUSDXBridgeProxy() public broadcast returns (address addr_) {
+        console.log("Deploying proxy for USDXBridge");
+        address proxyAdmin = mustGetAddress("ProxyAdmin");
+        L1ChugSplashProxy proxy = new L1ChugSplashProxy(proxyAdmin);
+
+        require(EIP1967Helper.getAdmin(address(proxy)) == proxyAdmin);
+
+        save("USDXBridgeProxy", address(proxy));
+        console.log("USDXBridgeProxy deployed at %s", address(proxy));
+        addr_ = address(proxy);
+    }
 
     /// @notice Deploy the L1StandardBridgeProxy using a ChugSplashProxy
     function deployL1StandardBridgeProxy() public broadcast returns (address addr_) {
@@ -832,6 +851,24 @@ contract Deploy is Deployer {
         ChainAssertions.checkSystemConfig({ _contracts: contracts, _cfg: cfg, _isProxy: false });
     }
 
+    function deployUSDXBridge() public broadcast returns (address addr_) {
+        console.log("Deploying USDXBridge implementation");
+
+        USDXBridge bridge = new USDXBridge{salt: _implSalt() }();
+
+        save("USDXBridge", address(bridge));
+        console.log("USDXBridge deployed at %s", address(bridge));
+
+        // Override the `USDXBridge` contract to the deployed implementation. This is necessary
+        // to check the `USDXBridge` implementation alongside dependent contracts, which
+        // are always proxies.
+        Types.ContractSet memory contracts = _proxiesUnstrict();
+        contracts.USDXBridge = address(bridge);
+        ChainAssertions.checkUSDXBridge({ _contracts: contracts, _cfg: cfg, _isProxy: false });
+
+        addr_ = address(bridge);
+    }
+
     /// @notice Deploy the L1StandardBridge
     function deployL1StandardBridge() public broadcast returns (address addr_) {
         console.log("Deploying L1StandardBridge implementation");
@@ -1049,6 +1086,53 @@ contract Deploy is Deployer {
         console.log("SystemConfig version: %s", version);
 
         ChainAssertions.checkSystemConfig({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
+    }
+
+    function initializeUSDXBridge() public broadcast {
+        console.log("Upgrading and initializing USDXBridge proxy");
+        ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
+        address usdxBridgeProxy = mustGetAddress("USDXBridgeProxy");
+        address usdxBridge = mustGetAddress("USDXBridge");
+
+        address optimismPortalProxy = mustGetAddress("OptimismPortalProxy");
+        address systemConfigProxy = mustGetAddress("SystemConfigProxy");
+
+        uint256 proxyType = uint256(proxyAdmin.proxyType(usdxBridgeProxy));
+        Safe safe = Safe(mustGetAddress("SystemOwnerSafe"));
+        if (proxyType != uint256(ProxyAdmin.ProxyType.CHUGSPLASH)) {
+            _callViaSafe({
+                _safe: safe,
+                _target: address(proxyAdmin),
+                _data: abi.encodeCall(ProxyAdmin.setProxyType, (usdxBridgeProxy, ProxyAdmin.ProxyType.CHUGSPLASH))
+            });
+        }
+        require(uint256(proxyAdmin.proxyType(usdxBridgeProxy)) == uint256(ProxyAdmin.ProxyType.CHUGSPLASH));
+
+        address[] memory stablecoins = new address[](3);
+        stablecoins[0] = cfg.usdc();
+        stablecoins[1] = cfg.usdt();
+        stablecoins[2] = cfg.dai();
+
+        /// @dev owner set to config final system owner, ensure correct before deploying (e.g. Hex Trust)
+        _upgradeAndCallViaSafe({
+            _proxy: payable(usdxBridgeProxy),
+            _implementation: usdxBridge,
+            _innerCallData: abi.encodeCall(
+                USDXBridge.initialize,
+                (
+                    cfg.finalSystemOwner(),
+                    OptimismPortal(payable(optimismPortalProxy)),
+                    SystemConfig(systemConfigProxy),
+                    stablecoins,
+                    1e30
+                )
+            )
+        });
+
+        string memory version = USDXBridge(payable(usdxBridge)).version();
+        console.log("USDXBridge version: %s", version);
+
+        ChainAssertions.checkUSDXBridge({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
     }
 
     /// @notice Initialize the L1StandardBridge

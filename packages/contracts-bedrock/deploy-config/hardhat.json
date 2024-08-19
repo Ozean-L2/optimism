@@ -62,5 +62,10 @@
   "daChallengeWindow": 100,
   "daResolveWindow": 100,
   "daBondSize": 1000,
-  "daResolverRefundPercentage": 50
+  "daResolverRefundPercentage": 50,
+  "useCustomGasToken": true,
+  "customGasTokenAddress": "0x640CB39e2D33Aa48EEE9AEC539420aF7Da72be8d",
+  "usdc": "0xE9d6759D9e3218f8066B07D0cEcAd42AE4717B24",
+  "usdt": "0xb9Fa9c1d11a7cA88aE2EC18Cefbade6066809338",
+  "dai": "0xB4E61Ba802BD1797e19D6f69492794bCECBDa95A"
 }

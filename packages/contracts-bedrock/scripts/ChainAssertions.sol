@@ -18,6 +18,7 @@ import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
+import { USDXBridge} from "src/L1/USDXBridge.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Types } from "scripts/Types.sol";
 import { Vm } from "forge-std/Vm.sol";
@@ -145,6 +146,36 @@ library ChainAssertions {
             require(address(messenger.PORTAL()) == address(0));
             require(address(messenger.portal()) == address(0));
             require(address(messenger.superchainConfig()) == address(0));
+        }
+    }
+
+    /// @notice Asserts that the USDXBridge is setup correctly
+    function checkUSDXBridge(Types.ContractSet memory _contracts, DeployConfig _cfg, bool _isProxy) internal {
+        console.log("Running chain assertions on the USDXBridge");
+        USDXBridge bridge = USDXBridge(payable(_contracts.USDXBridge));
+
+        // Check that the contract is initialized
+        assertSlotValueIsOne({ _contractAddress: address(bridge), _slot: 0, _offset: 0 });
+
+        if (_isProxy) {
+            require(bridge.owner() == _cfg.finalSystemOwner());
+            require(address(bridge.config()) == _contracts.SystemConfig);
+            require(address(bridge.portal()) == _contracts.OptimismPortal);
+            require(address(bridge.usdx()) == _cfg.customGasTokenAddress());
+            require(bridge.depositCap() == 1e30);
+            require(bridge.allowlisted(_cfg.usdc()) == true);
+            require(bridge.allowlisted(_cfg.usdt()) == true);
+            require(bridge.allowlisted(_cfg.dai()) == true);
+        } else {
+            require(address(bridge.owner()) == address(0xdEaD));
+            require(address(bridge.config()) == address(0));
+            require(address(bridge.portal()) == address(0));
+            vm.expectRevert();
+            bridge.usdx();
+            require(bridge.depositCap() == 0);
+            require(bridge.allowlisted(_cfg.usdc()) == false);
+            require(bridge.allowlisted(_cfg.usdt()) == false);
+            require(bridge.allowlisted(_cfg.dai()) == false);
         }
     }
 
