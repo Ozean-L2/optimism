@@ -1,21 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 
-/// @custom:proxied
 /// @title  USDX Bridge
 /// @notice This contract provides bridging functionality for allow-listed stablecoins to the Ozean Layer L2.
 ///         Users can deposit any allow-listed stablecoin and recieve USDX, the native gas token for Ozean, on
 ///         the L2 via the Optimism Portal contract. The owner of this contract can modify the set of
 ///         allow-listed stablecoins accepted, along with the deposit cap, and can also withdraw any deposited
 ///         ERC20 tokens.
-contract USDXBridge is OwnableUpgradeable, ReentrancyGuard, ISemver {
+contract USDXBridge is Ownable, ReentrancyGuard, ISemver {
     /// @notice Semantic version.
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
@@ -42,19 +41,9 @@ contract USDXBridge is OwnableUpgradeable, ReentrancyGuard, ISemver {
     /// @notice An event emitted when an ERC20 token is withdrawn from this contract.
     event WithdrawCoins(address indexed _coin, uint256 _amount, address indexed _to);
 
-    /// INITIALIZE ///
+    /// SETUP ///
 
-    constructor() {
-        initialize({
-            _owner: address(0xdEaD),
-            _portal: OptimismPortal(payable(address(0))),
-            _config: SystemConfig(payable(address(0))),
-            _stablecoins: new address[](0),
-            _depositCap: 0
-        });
-    }
-
-    /// @notice The initialization function used during the proxy contract set up.
+    /// @notice The constructor contract set up.
     /// @param  _owner The address granted ownership rights to this contract.
     /// @param  _portal The Optimism Portal contract, which is directly responsible for bridging USDX.
     /// @param  _config The Optimism System Config contract, which ensures alignment on the gas token.
@@ -62,16 +51,15 @@ contract USDXBridge is OwnableUpgradeable, ReentrancyGuard, ISemver {
     /// @param  _depositCap The initial deposit cap for this contract, which limits the total amount bridged.
     /// @dev    This function includes an unbounded for-loop. Ensure that the array of allow-listed
     ///         stablecoins is reasonable in length.
-    function initialize(
+    constructor(
         address _owner,
         OptimismPortal _portal,
         SystemConfig _config,
         address[] memory _stablecoins,
         uint256 _depositCap
-    ) public initializer {
+    ) {
         /// Set storage
-        __Ownable_init();
-        transferOwnership(_owner);
+        _transferOwnership(_owner);
         portal = _portal;
         config = _config;
         depositCap = _depositCap;
