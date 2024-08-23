@@ -2,15 +2,18 @@
 pragma solidity 0.8.15;
 
 import { console2 as console } from "forge-std/console2.sol";
+import { USDXBridgeDeploy } from "scripts/ozean/USDXBridgeDeploy.s.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
-import { DeployConfig } from "scripts/DeployConfig.s.sol";
-import { MockUSDX } from "test/mocks/MockUSDX.sol";
 import { TestERC20Decimals } from "test/mocks/TestERC20.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
+import { USDXBridge } from "src/L1/USDXBridge.sol";
 
 /// @dev forge test --match-contract USDXBridgeTest
 contract USDXBridgeTest is CommonTest {
-    MockUSDX public usdx;          /// 18 decimals
+    USDXBridge public usdxBridge;
+
+    address public hexTrust;
+
     TestERC20Decimals public usdc; /// 6 decimals
     TestERC20Decimals public usdt; /// 6 decimals
     TestERC20Decimals public dai;  /// 18 decimals
@@ -20,16 +23,30 @@ contract USDXBridgeTest is CommonTest {
     event WithdrawCoins(address indexed _coin, uint256 _amount, address indexed _to);
 
     function setUp() public override {
-        /// @dev Mocks for each token
-        /// USDX: 0x640CB39e2D33Aa48EEE9AEC539420aF7Da72be8d
-        usdx = new MockUSDX{salt: bytes32("USDX")}();
+        /// Set up environment
+        hexTrust = makeAddr("HEX_TRUST");
         /// USDC: 0xE9d6759D9e3218f8066B07D0cEcAd42AE4717B24
         usdc = new TestERC20Decimals{salt: bytes32("USDC")}(6);
         /// USDT: 0xb9Fa9c1d11a7cA88aE2EC18Cefbade6066809338
         usdt = new TestERC20Decimals{salt: bytes32("USDT")}(6);
         /// DAI:  0xB4E61Ba802BD1797e19D6f69492794bCECBDa95A
         dai = new TestERC20Decimals{salt: bytes32("DAI")}(18);
+
+        /// Deploy Ozean
         super.setUp();
+
+        /// Deploy USDX Bridge
+        USDXBridgeDeploy deployScript = new USDXBridgeDeploy();
+        deployScript.setUp(
+            hexTrust,
+            address(usdc),
+            address(usdt),
+            address(dai),
+            optimismPortal,
+            systemConfig
+        );
+        deployScript.run();
+        usdxBridge = deployScript.usdxBridge();
     }
 
     function testInitialize() public view {
@@ -39,7 +56,7 @@ contract USDXBridgeTest is CommonTest {
         assertEq(decimals, 18);
 
         /// Bridge
-        assertEq(usdxBridge.owner(), deploy.cfg().finalSystemOwner());
+        assertEq(usdxBridge.owner(), hexTrust);
         assertEq(address(usdxBridge.usdx()), address(usdx));
         assertEq(address(usdxBridge.portal()), address(optimismPortal));
         assertEq(address(usdxBridge.config()), address(systemConfig));
@@ -203,8 +220,7 @@ contract USDXBridgeTest is CommonTest {
 
         /// Owner adds stablecoin to allowlist
         vm.stopPrank();
-        address owner = deploy.cfg().finalSystemOwner();
-        vm.startPrank(owner);
+        vm.startPrank(hexTrust);
         usdxBridge.setAllowlist(address(usde), true);
         vm.stopPrank();
         vm.startPrank(alice);
@@ -239,8 +255,7 @@ contract USDXBridgeTest is CommonTest {
         usdxBridge.setAllowlist(address(usde), true);
 
         /// Owner allowed to set new coin
-        address owner = deploy.cfg().finalSystemOwner();
-        vm.startPrank(owner);
+        vm.startPrank(hexTrust);
 
         /// Add USDE
         usdxBridge.setAllowlist(address(usde), true);
@@ -261,8 +276,7 @@ contract USDXBridgeTest is CommonTest {
         assertEq(usdxBridge.depositCap(), 1e30);
 
         /// Owner allowed
-        address owner = deploy.cfg().finalSystemOwner();
-        vm.startPrank(owner);
+        vm.startPrank(hexTrust);
 
         usdxBridge.setDepositCap(_newCap);
 
@@ -282,21 +296,20 @@ contract USDXBridgeTest is CommonTest {
         usdxBridge.withdrawERC20(address(dai), _amount);
 
         /// Owner allowed
-        address owner = deploy.cfg().finalSystemOwner();
-        vm.startPrank(owner);
+        vm.startPrank(hexTrust);
 
         vm.expectEmit(true, true, true, true);
         emit WithdrawCoins(
             address(dai),
             _amount,
-            owner
+            hexTrust
         );
         usdxBridge.withdrawERC20(address(dai), _amount);
 
         vm.stopPrank();
 
         assertEq(dai.balanceOf(address(usdxBridge)), 0);
-        assertEq(dai.balanceOf(owner), _amount);
+        assertEq(dai.balanceOf(hexTrust), _amount);
     }
 
     function testBridgeUSDXWithUSDCAndWithdraw(uint256 _amount) public prank(alice) {
@@ -322,19 +335,18 @@ contract USDXBridgeTest is CommonTest {
 
         /// Owner withdraws deposited USDC
         vm.stopPrank();
-        address owner = deploy.cfg().finalSystemOwner();
-        vm.startPrank(owner);
+        vm.startPrank(hexTrust);
 
         vm.expectEmit(true, true, true, true);
         emit WithdrawCoins(
             address(usdc),
             _amount,
-            owner
+            hexTrust
         );
         usdxBridge.withdrawERC20(address(usdc), _amount);
 
         assertEq(usdc.balanceOf(address(usdxBridge)), 0);
-        assertEq(usdc.balanceOf(owner), _amount);
+        assertEq(usdc.balanceOf(hexTrust), _amount);
     }
 
     /// HELPERS ///
