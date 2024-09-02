@@ -38,12 +38,16 @@ contract USDXBridgeDeploy is Script {
         stablecoins[0] = usdc;
         stablecoins[1] = usdt;
         stablecoins[2] = dai;
+        uint256[] memory depositCaps = new uint256[](3);
+        depositCaps[0] = 1e30;
+        depositCaps[1] = 1e30;
+        depositCaps[2] = 1e30;
         usdxBridge = new USDXBridge(
             hexTrust,
             optimismPortal,
             systemConfig,
             stablecoins,
-            1e30
+            depositCaps
         );
     }
 

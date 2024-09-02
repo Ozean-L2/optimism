@@ -49,6 +49,28 @@ contract USDXBridgeTest is CommonTest {
         usdxBridge = deployScript.usdxBridge();
     }
 
+    /// SETUP ///
+
+    function testDeployRevertWithUnequalArrayLengths() public {
+        address[] memory stablecoins = new address[](3);
+        stablecoins[0] = address(usdc);
+        stablecoins[1] = address(usdt);
+        stablecoins[2] = address(dai);
+        uint256[] memory depositCaps = new uint256[](2);
+        depositCaps[0] = 1e30;
+        depositCaps[1] = 1e30;
+        vm.expectRevert(
+            "USDXBridge: Stablecoins array length must equal the Deposit Caps array length."
+        );
+        usdxBridge = new USDXBridge(
+            hexTrust,
+            optimismPortal,
+            systemConfig,
+            stablecoins,
+            depositCaps
+        );
+    }
+
     function testInitialize() public view {
         /// Environment
         (address addr, uint8 decimals) = systemConfig.gasPayingToken();
@@ -60,12 +82,16 @@ contract USDXBridgeTest is CommonTest {
         assertEq(address(usdxBridge.usdx()), address(usdx));
         assertEq(address(usdxBridge.portal()), address(optimismPortal));
         assertEq(address(usdxBridge.config()), address(systemConfig));
-        assertEq(usdxBridge.depositCap(), 1e30);
-        assertEq(usdxBridge.totalBridged(), 0);
         assertEq(usdx.allowance(address(usdxBridge), address(optimismPortal)), 0);
         assertEq(usdxBridge.allowlisted(address(usdc)), true);
         assertEq(usdxBridge.allowlisted(address(usdt)), true);
         assertEq(usdxBridge.allowlisted(address(dai)), true);
+        assertEq(usdxBridge.depositCap(address(usdc)), 1e30);
+        assertEq(usdxBridge.depositCap(address(usdt)), 1e30);
+        assertEq(usdxBridge.depositCap(address(dai)), 1e30);
+        assertEq(usdxBridge.totalBridged(address(usdc)), 0);
+        assertEq(usdxBridge.totalBridged(address(usdt)), 0);
+        assertEq(usdxBridge.totalBridged(address(dai)), 0);
     }
 
     /// @dev Deposit USDX directly via portal, bypassing usdx bridge
@@ -111,7 +137,7 @@ contract USDXBridgeTest is CommonTest {
         usdxBridge.bridge(address(dai), 0, alice);
 
         /// Deposit Cap exceeded
-        uint256 excess = usdxBridge.depositCap() + 1;
+        uint256 excess = usdxBridge.depositCap(address(dai)) + 1;
         vm.expectRevert("USDXBridge: Bridge amount exceeds deposit cap.");
         usdxBridge.bridge(address(dai), excess, alice);
     }
@@ -141,7 +167,7 @@ contract USDXBridgeTest is CommonTest {
         usdxBridge.bridge(address(usdc), _amount, alice);
 
         assertEq(usdx.balanceOf(address(optimismPortal)), usdxAmount);
-        assertEq(usdxBridge.totalBridged(), usdxAmount);
+        assertEq(usdxBridge.totalBridged(address(usdc)), usdxAmount);
         assertEq(usdx.allowance(address(usdxBridge), address(optimismPortal)), 0);
     }
 
@@ -170,7 +196,7 @@ contract USDXBridgeTest is CommonTest {
         usdxBridge.bridge(address(usdt), _amount, alice);
 
         assertEq(usdx.balanceOf(address(optimismPortal)), usdxAmount);
-        assertEq(usdxBridge.totalBridged(), usdxAmount);
+        assertEq(usdxBridge.totalBridged(address(usdt)), usdxAmount);
         assertEq(usdx.allowance(address(usdxBridge), address(optimismPortal)), 0);
     }
 
@@ -198,7 +224,7 @@ contract USDXBridgeTest is CommonTest {
         usdxBridge.bridge(address(dai), _amount, alice);
 
         assertEq(usdx.balanceOf(address(optimismPortal)), _amount);
-        assertEq(usdxBridge.totalBridged(), _amount);
+        assertEq(usdxBridge.totalBridged(address(dai)), _amount);
         assertEq(usdx.allowance(address(usdxBridge), address(optimismPortal)), 0);
     }
 
@@ -222,6 +248,7 @@ contract USDXBridgeTest is CommonTest {
         vm.stopPrank();
         vm.startPrank(hexTrust);
         usdxBridge.setAllowlist(address(usde), true);
+        usdxBridge.setDepositCap(address(usde), 1e30);
         vm.stopPrank();
         vm.startPrank(alice);
 
@@ -242,7 +269,7 @@ contract USDXBridgeTest is CommonTest {
         usdxBridge.bridge(address(usde), _amount, alice);
 
         assertEq(usdx.balanceOf(address(optimismPortal)), usdxAmount);
-        assertEq(usdxBridge.totalBridged(), usdxAmount);
+        assertEq(usdxBridge.totalBridged(address(usde)), usdxAmount);
     }
 
     /// OWNER ///
@@ -271,18 +298,18 @@ contract USDXBridgeTest is CommonTest {
     function testSetDepositCap(uint256 _newCap) public {
         /// Non-owner revert
         vm.expectRevert("Ownable: caller is not the owner");
-        usdxBridge.setDepositCap(_newCap);
+        usdxBridge.setDepositCap(address(usdc), _newCap);
 
-        assertEq(usdxBridge.depositCap(), 1e30);
+        assertEq(usdxBridge.depositCap(address(usdc)), 1e30);
 
         /// Owner allowed
         vm.startPrank(hexTrust);
 
-        usdxBridge.setDepositCap(_newCap);
+        usdxBridge.setDepositCap(address(usdc), _newCap);
 
         vm.stopPrank();
 
-        assertEq(usdxBridge.depositCap(), _newCap);
+        assertEq(usdxBridge.depositCap(address(usdc)), _newCap);
     }
 
     function testWithdrawERC20(uint256 _amount) public {
@@ -331,7 +358,7 @@ contract USDXBridgeTest is CommonTest {
         usdxBridge.bridge(address(usdc), _amount, alice);
 
         assertEq(usdx.balanceOf(address(optimismPortal)), usdxAmount);
-        assertEq(usdxBridge.totalBridged(), usdxAmount);
+        assertEq(usdxBridge.totalBridged(address(usdc)), usdxAmount);
 
         /// Owner withdraws deposited USDC
         vm.stopPrank();
