@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
@@ -15,6 +16,8 @@ import { ISemver } from "src/universal/ISemver.sol";
 ///         allow-listed stablecoins accepted, along with the deposit caps, and can also withdraw any deposited
 ///         ERC20 tokens.
 contract USDXBridge is Ownable, ReentrancyGuard, ISemver {
+    using SafeERC20 for IERC20Decimals;
+
     /// @notice Semantic version.
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
@@ -100,7 +103,7 @@ contract USDXBridge is Ownable, ReentrancyGuard, ISemver {
         );
         /// Update state
         totalBridged[_stablecoin] += bridgeAmount;
-        IERC20Decimals(_stablecoin).transferFrom(msg.sender, address(this), _amount);
+        IERC20Decimals(_stablecoin).safeTransferFrom(msg.sender, address(this), _amount);
         /// Mint USDX
         usdx().mint(address(this), bridgeAmount);
         /// Bridge USDX
@@ -137,7 +140,7 @@ contract USDXBridge is Ownable, ReentrancyGuard, ISemver {
     /// @param  _coin The address of the ERC20 token to withdraw.
     /// @param  _amount The amount of tokens to withdraw.
     function withdrawERC20(address _coin, uint256 _amount) external onlyOwner {
-        IERC20(_coin).transfer(msg.sender, _amount);
+        IERC20Decimals(_coin).safeTransfer(msg.sender, _amount);
         emit WithdrawCoins(_coin, _amount, msg.sender);
     }
 
