@@ -140,7 +140,7 @@ contract USDXBridge is Ownable, ReentrancyGuard, ISemver {
     /// @param  _coin The address of the ERC20 token to withdraw.
     /// @param  _amount The amount of tokens to withdraw.
     function withdrawERC20(address _coin, uint256 _amount) external onlyOwner {
-        IERC20(_coin).transfer(msg.sender, _amount);
+        IERC20Decimals(_coin).safeTransfer(msg.sender, _amount);
         emit WithdrawCoins(_coin, _amount, msg.sender);
     }
 
