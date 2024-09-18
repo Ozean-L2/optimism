@@ -14,9 +14,13 @@ contract USDXBridgeTest is CommonTest {
 
     address public hexTrust;
 
-    TestERC20Decimals public usdc; /// 6 decimals
-    TestERC20Decimals public usdt; /// 6 decimals
-    TestERC20Decimals public dai;  /// 18 decimals
+    TestERC20Decimals public usdc;
+
+    /// 6 decimals
+    TestERC20Decimals public usdt;
+    /// 6 decimals
+    TestERC20Decimals public dai;
+    /// 18 decimals
 
     /// USDX Bridge events
     event BridgeDeposit(address indexed _stablecoin, uint256 _amount, address indexed _to);
@@ -26,25 +30,18 @@ contract USDXBridgeTest is CommonTest {
         /// Set up environment
         hexTrust = makeAddr("HEX_TRUST");
         /// USDC: 0xE9d6759D9e3218f8066B07D0cEcAd42AE4717B24
-        usdc = new TestERC20Decimals{salt: bytes32("USDC")}(6);
+        usdc = new TestERC20Decimals{ salt: bytes32("USDC") }(6);
         /// USDT: 0xb9Fa9c1d11a7cA88aE2EC18Cefbade6066809338
-        usdt = new TestERC20Decimals{salt: bytes32("USDT")}(6);
+        usdt = new TestERC20Decimals{ salt: bytes32("USDT") }(6);
         /// DAI:  0xB4E61Ba802BD1797e19D6f69492794bCECBDa95A
-        dai = new TestERC20Decimals{salt: bytes32("DAI")}(18);
+        dai = new TestERC20Decimals{ salt: bytes32("DAI") }(18);
 
         /// Deploy Ozean
         super.setUp();
 
         /// Deploy USDX Bridge
         USDXBridgeDeploy deployScript = new USDXBridgeDeploy();
-        deployScript.setUp(
-            hexTrust,
-            address(usdc),
-            address(usdt),
-            address(dai),
-            optimismPortal,
-            systemConfig
-        );
+        deployScript.setUp(hexTrust, address(usdc), address(usdt), address(dai), optimismPortal, systemConfig);
         deployScript.run();
         usdxBridge = deployScript.usdxBridge();
     }
@@ -59,16 +56,8 @@ contract USDXBridgeTest is CommonTest {
         uint256[] memory depositCaps = new uint256[](2);
         depositCaps[0] = 1e30;
         depositCaps[1] = 1e30;
-        vm.expectRevert(
-            "USDXBridge: Stablecoins array length must equal the Deposit Caps array length."
-        );
-        usdxBridge = new USDXBridge(
-            hexTrust,
-            optimismPortal,
-            systemConfig,
-            stablecoins,
-            depositCaps
-        );
+        vm.expectRevert("USDXBridge: Stablecoins array length must equal the Deposit Caps array length.");
+        usdxBridge = new USDXBridge(hexTrust, optimismPortal, systemConfig, stablecoins, depositCaps);
     }
 
     function testInitialize() public view {
@@ -105,10 +94,7 @@ contract USDXBridgeTest is CommonTest {
         /// Bridge directly
         vm.expectEmit(true, true, true, true);
         emit TransactionDeposited(
-            AddressAliasHelper.applyL1ToL2Alias(alice),
-            alice,
-            0,
-            _getOpaqueData(_amount, _amount, 21000, false, "")
+            AddressAliasHelper.applyL1ToL2Alias(alice), alice, 0, _getOpaqueData(_amount, _amount, 21000, false, "")
         );
         optimismPortal.depositERC20Transaction({
             _to: alice,
@@ -159,11 +145,7 @@ contract USDXBridgeTest is CommonTest {
             _getOpaqueData(usdxAmount, usdxAmount, 21000, false, "")
         );
         vm.expectEmit(true, true, true, true);
-        emit BridgeDeposit(
-            address(usdc),
-            _amount,
-            alice
-        );
+        emit BridgeDeposit(address(usdc), _amount, alice);
         usdxBridge.bridge(address(usdc), _amount, alice);
 
         assertEq(usdx.balanceOf(address(optimismPortal)), usdxAmount);
@@ -188,11 +170,7 @@ contract USDXBridgeTest is CommonTest {
             _getOpaqueData(usdxAmount, usdxAmount, 21000, false, "")
         );
         vm.expectEmit(true, true, true, true);
-        emit BridgeDeposit(
-            address(usdt),
-            _amount,
-            alice
-        );
+        emit BridgeDeposit(address(usdt), _amount, alice);
         usdxBridge.bridge(address(usdt), _amount, alice);
 
         assertEq(usdx.balanceOf(address(optimismPortal)), usdxAmount);
@@ -216,11 +194,7 @@ contract USDXBridgeTest is CommonTest {
             _getOpaqueData(_amount, _amount, 21000, false, "")
         );
         vm.expectEmit(true, true, true, true);
-        emit BridgeDeposit(
-            address(dai),
-            _amount,
-            alice
-        );
+        emit BridgeDeposit(address(dai), _amount, alice);
         usdxBridge.bridge(address(dai), _amount, alice);
 
         assertEq(usdx.balanceOf(address(optimismPortal)), _amount);
@@ -261,11 +235,7 @@ contract USDXBridgeTest is CommonTest {
             _getOpaqueData(usdxAmount, usdxAmount, 21000, false, "")
         );
         vm.expectEmit(true, true, true, true);
-        emit BridgeDeposit(
-            address(usde),
-            _amount,
-            alice
-        );
+        emit BridgeDeposit(address(usde), _amount, alice);
         usdxBridge.bridge(address(usde), _amount, alice);
 
         assertEq(usdx.balanceOf(address(optimismPortal)), usdxAmount);
@@ -326,11 +296,7 @@ contract USDXBridgeTest is CommonTest {
         vm.startPrank(hexTrust);
 
         vm.expectEmit(true, true, true, true);
-        emit WithdrawCoins(
-            address(dai),
-            _amount,
-            hexTrust
-        );
+        emit WithdrawCoins(address(dai), _amount, hexTrust);
         usdxBridge.withdrawERC20(address(dai), _amount);
 
         vm.stopPrank();
@@ -365,11 +331,7 @@ contract USDXBridgeTest is CommonTest {
         vm.startPrank(hexTrust);
 
         vm.expectEmit(true, true, true, true);
-        emit WithdrawCoins(
-            address(usdc),
-            _amount,
-            hexTrust
-        );
+        emit WithdrawCoins(address(usdc), _amount, hexTrust);
         usdxBridge.withdrawERC20(address(usdc), _amount);
 
         assertEq(usdc.balanceOf(address(usdxBridge)), 0);
@@ -384,7 +346,11 @@ contract USDXBridgeTest is CommonTest {
         uint64 _gasLimit,
         bool _isCreation,
         bytes memory _data
-    ) internal pure returns (bytes memory) {
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
         return abi.encodePacked(_mint, _value, _gasLimit, _isCreation, _data);
     }
 }

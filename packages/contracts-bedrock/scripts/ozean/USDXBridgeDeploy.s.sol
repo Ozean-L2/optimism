@@ -24,7 +24,9 @@ contract USDXBridgeDeploy is Script {
         address _dai,
         OptimismPortal _optimismPortal,
         SystemConfig _systemConfig
-    ) external {
+    )
+        external
+    {
         hexTrust = _hexTrust;
         usdc = _usdc;
         usdt = _usdt;
@@ -42,13 +44,7 @@ contract USDXBridgeDeploy is Script {
         depositCaps[0] = 1e30;
         depositCaps[1] = 1e30;
         depositCaps[2] = 1e30;
-        usdxBridge = new USDXBridge(
-            hexTrust,
-            optimismPortal,
-            systemConfig,
-            stablecoins,
-            depositCaps
-        );
+        usdxBridge = new USDXBridge(hexTrust, optimismPortal, systemConfig, stablecoins, depositCaps);
     }
 
     modifier broadcast() {

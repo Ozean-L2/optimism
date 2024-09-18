@@ -24,10 +24,10 @@ contract USDXBridge is Ownable, ReentrancyGuard, ISemver {
 
     /// @notice Contract of the Optimism Portal.
     /// @custom:network-specific
-    OptimismPortal public portal;
+    OptimismPortal public immutable portal;
 
     /// @notice Address of the System Config contract.
-    SystemConfig public config;
+    SystemConfig public immutable config;
 
     /// @notice Addresses of allow-listed stablecoins.
     /// @dev    stablecoin => allowlisted
@@ -88,11 +88,7 @@ contract USDXBridge is Ownable, ReentrancyGuard, ISemver {
     /// @param  _stablecoin Depositing stablecoin address.
     /// @param  _amount The amount of deposit stablecoin to be swapped for USDX.
     /// @param  _to Recieving address on L2.
-    function bridge(
-        address _stablecoin,
-        uint256 _amount,
-        address _to
-    ) external nonReentrant {
+    function bridge(address _stablecoin, uint256 _amount, address _to) external nonReentrant {
         /// Checks
         require(allowlisted[_stablecoin], "USDXBridge: Stablecoin not accepted.");
         require(_amount > 0, "USDXBridge: May not bridge nothing.");
@@ -112,7 +108,8 @@ contract USDXBridge is Ownable, ReentrancyGuard, ISemver {
             _to: _to,
             _mint: bridgeAmount,
             _value: bridgeAmount,
-            _gasLimit: 21000, /// @dev portal.minimumGasLimit(0)
+            _gasLimit: 21000,
+            /// @dev portal.minimumGasLimit(0)
             _isCreation: false,
             _data: ""
         });
@@ -158,10 +155,7 @@ contract USDXBridge is Ownable, ReentrancyGuard, ISemver {
     /// @param  _amount The amount of the stablecoin deposited.
     /// @return uint256 The amount of USDX to mint given the deposited stablecoin amount.
     /// @dev    Assumes 1:1 conversion between the deposited stablecoin and USDX.
-    function _getBridgeAmount(
-        address _stablecoin,
-        uint256 _amount
-    ) internal view returns (uint256) {
+    function _getBridgeAmount(address _stablecoin, uint256 _amount) internal view returns (uint256) {
         uint8 depositDecimals = IERC20Decimals(_stablecoin).decimals();
         uint8 usdxDecimals = usdx().decimals();
         return (_amount * 10 ** usdxDecimals) / (10 ** depositDecimals);
