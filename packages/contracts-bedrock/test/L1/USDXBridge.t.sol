@@ -14,13 +14,12 @@ contract USDXBridgeTest is CommonTest {
 
     address public hexTrust;
 
+    /// 6 decimals
     TestERC20Decimals public usdc;
-
     /// 6 decimals
     TestERC20Decimals public usdt;
-    /// 6 decimals
-    TestERC20Decimals public dai;
     /// 18 decimals
+    TestERC20Decimals public dai;
 
     /// USDX Bridge events
     event BridgeDeposit(address indexed _stablecoin, uint256 _amount, address indexed _to);
