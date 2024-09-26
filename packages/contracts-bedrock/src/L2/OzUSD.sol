@@ -8,11 +8,8 @@ import { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuar
 /// Reference implementation: https://vscode.blockscan.com/ethereum/0x17144556fd3424edc8fc8a4c940b2d04936d17eb
 contract OzUSD is IERC20, ReentrancyGuard {
     string public constant name = "Ozean USD";
-
     string public constant symbol = "ozUSD";
-
     uint8 public constant decimals = 18;
-
     uint256 private totalShares;
 
     /**
@@ -52,6 +49,7 @@ contract OzUSD is IERC20, ReentrancyGuard {
     );
 
     constructor(uint256 _sharesAmount) payable {
+        require(msg.value == _sharesAmount, "OzUSD: INCORRECT_VALUE");
         _mintShares(address(0xdead), _sharesAmount);
         _emitTransferAfterMintingShares(address(0xdead), _sharesAmount);
     }

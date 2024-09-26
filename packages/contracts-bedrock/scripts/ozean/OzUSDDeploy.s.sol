@@ -10,7 +10,7 @@ contract OzUSDDeploy is Script {
     uint256 public initialSharesAmount = 1e18;
 
     function run() external broadcast {
-        ozUSD = new OzUSD{ value: 1e18 }(initialSharesAmount);
+        ozUSD = new OzUSD{ value: initialSharesAmount }(initialSharesAmount);
     }
 
     modifier broadcast() {
