@@ -3,10 +3,12 @@ pragma solidity 0.8.15;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 /// Rebasing token - does NOT conform to the ERC20 standard due to no event emitted on rebase
 /// Reference implementation: https://vscode.blockscan.com/ethereum/0x17144556fd3424edc8fc8a4c940b2d04936d17eb
-contract OzUSD is IERC20, ReentrancyGuard {
+/// Need to add/redo Nat Spec also
+contract OzUSD is IERC20, ReentrancyGuard, Initializable {
     string public constant name = "Ozean USD";
     string public constant symbol = "ozUSD";
     uint8 public constant decimals = 18;
@@ -48,7 +50,11 @@ contract OzUSD is IERC20, ReentrancyGuard {
         address indexed account, uint256 preRebaseTokenAmount, uint256 postRebaseTokenAmount, uint256 sharesAmount
     );
 
-    constructor(uint256 _sharesAmount) payable {
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(uint256 _sharesAmount) external payable initializer nonReentrant {
         require(msg.value == _sharesAmount, "OzUSD: INCORRECT_VALUE");
         _mintShares(address(0xdead), _sharesAmount);
         _emitTransferAfterMintingShares(address(0xdead), _sharesAmount);

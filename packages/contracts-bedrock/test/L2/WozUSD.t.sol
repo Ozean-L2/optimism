@@ -14,13 +14,15 @@ contract WozUSDTest is CommonTest {
     WozUSD public wozUSD;
 
     function setUp() public override {
-        /// Deploy Ozean
-        super.setUp();
+        alice = makeAddr("alice");
+        bob = makeAddr("bob");
+        vm.deal(alice, 10000 ether);
+        vm.deal(bob, 10000 ether);
 
         /// Deploy OzUSD
         OzUSDDeploy ozDeployScript = new OzUSDDeploy();
         ozDeployScript.run();
-        ozUSD = ozDeployScript.ozUSD();
+        ozUSD = OzUSD(payable(ozDeployScript.proxy()));
 
         /// Deploy WozUSD
         WozUSDDeploy wozDeployScript = new WozUSDDeploy();

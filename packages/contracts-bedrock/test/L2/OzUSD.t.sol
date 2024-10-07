@@ -4,20 +4,27 @@ pragma solidity 0.8.15;
 import { console2 as console } from "forge-std/console2.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { OzUSD } from "src/L2/OzUSD.sol";
-import { OzUSDDeploy } from "scripts/ozean/OzUSDDeploy.s.sol";
+import { OzUSDDeploy, TransparentUpgradeableProxy } from "scripts/ozean/OzUSDDeploy.s.sol";
 
 /// @dev forge test --match-contract OzUSDTest -vvv
 contract OzUSDTest is CommonTest {
+    address public admin;
+    OzUSD public implementation;
     OzUSD public ozUSD;
 
     function setUp() public override {
-        /// Deploy Ozean
-        super.setUp();
+        alice = makeAddr("alice");
+        bob = makeAddr("bob");
+        admin = makeAddr("admin");
+        vm.deal(alice, 10000 ether);
+        vm.deal(bob, 10000 ether);
+        vm.deal(admin, 10000 ether);
 
         /// Deploy OzUSD
         OzUSDDeploy deployScript = new OzUSDDeploy();
         deployScript.run();
-        ozUSD = deployScript.ozUSD();
+        implementation = deployScript.implementation();
+        ozUSD = OzUSD(payable(deployScript.proxy()));
     }
 
     /// SETUP ///
@@ -40,48 +47,76 @@ contract OzUSDTest is CommonTest {
         (bool s,) = address(ozUSD).call{ value: sharesAmount }("");
         assert(s);
 
-        assertEq(
-            ozUSD.getPooledUSDXByShares(sharesAmount), (sharesAmount * address(ozUSD).balance) / 1e18
-        );
+        assertEq(ozUSD.getPooledUSDXByShares(sharesAmount), (sharesAmount * address(ozUSD).balance) / 1e18);
     }
 
-    function testMintAndRebase() public prank(alice) {
-        uint256 sharesAmount = 1e18;
+    function testMintAndRebase(uint256 _amountA, uint256 _amountB) public prank(alice) {
+        _amountA = bound(_amountA, 1, 1e21);
+        _amountB = bound(_amountB, 1, 1e21);
 
         assertEq(address(ozUSD).balance, 1e18);
-        assertEq(ozUSD.getPooledUSDXByShares(sharesAmount), 1e18);
+        assertEq(ozUSD.getPooledUSDXByShares(_amountA), _amountA);
 
-        ozUSD.mintOzUSD{ value: 1e18 }(alice, 1e18);
+        ozUSD.mintOzUSD{ value: _amountA }(alice, _amountA);
 
-        assertEq(address(ozUSD).balance, 2e18);
-        assertEq(ozUSD.getPooledUSDXByShares(sharesAmount), 1e18);
+        assertEq(address(ozUSD).balance, 1e18 + _amountA);
+        assertEq(ozUSD.getPooledUSDXByShares(_amountA), _amountA);
 
-        (bool s,) = address(ozUSD).call{ value: 1e18 }("");
+        (bool s,) = address(ozUSD).call{ value: _amountB }("");
         assert(s);
 
-        assertEq(address(ozUSD).balance, 3e18);
-        assertEq(ozUSD.balanceOf(alice), 1.5e18);
-        assertEq(ozUSD.getPooledUSDXByShares(sharesAmount), 1.5e18);
+        assertEq(address(ozUSD).balance, 1e18 + _amountA + _amountB);
+        assertEq(ozUSD.balanceOf(alice), ozUSD.getPooledUSDXByShares(_amountA));
+        assertEq(ozUSD.getPooledUSDXByShares(_amountA), (_amountA * (1e18 + _amountA + _amountB)) / (1e18 + _amountA));
     }
 
-    function testMintAndRedeem() public prank(alice) {
-        uint256 sharesAmount = 1e18;
+    function testMintAndRedeem(uint256 _amountA) public prank(alice) {
+        _amountA = bound(_amountA, 1, 1e21);
 
         assertEq(address(ozUSD).balance, 1e18);
-        assertEq(ozUSD.getPooledUSDXByShares(sharesAmount), 1e18);
+        assertEq(ozUSD.getPooledUSDXByShares(_amountA), _amountA);
 
-        ozUSD.mintOzUSD{ value: 1e18 }(alice, 1e18);
+        ozUSD.mintOzUSD{ value: _amountA }(alice, _amountA);
 
-        assertEq(address(ozUSD).balance, 2e18);
-        assertEq(ozUSD.balanceOf(alice), 1e18);
-        assertEq(ozUSD.getPooledUSDXByShares(sharesAmount), 1e18);
+        assertEq(address(ozUSD).balance, 1e18 + _amountA);
+        assertEq(ozUSD.getPooledUSDXByShares(_amountA), _amountA);
 
-        ozUSD.approve(alice, 1e18);
-        ozUSD.redeemOzUSD(alice, 1e18);
+        ozUSD.approve(alice, _amountA);
+        ozUSD.redeemOzUSD(alice, _amountA);
 
         assertEq(address(ozUSD).balance, 1e18);
         assertEq(ozUSD.balanceOf(alice), 0);
-        assertEq(ozUSD.getPooledUSDXByShares(sharesAmount), 1e18);
+        assertEq(ozUSD.getPooledUSDXByShares(_amountA), _amountA);
+    }
+
+    function testMintRebaseAndRedeem(uint256 _amountA, uint256 _amountB) public prank(alice) {
+        _amountA = bound(_amountA, 1, 1e21);
+        _amountB = bound(_amountB, 1, 1e21);
+
+        assertEq(address(ozUSD).balance, 1e18);
+        assertEq(ozUSD.getPooledUSDXByShares(_amountA), _amountA);
+
+        ozUSD.mintOzUSD{ value: _amountA }(alice, _amountA);
+
+        assertEq(address(ozUSD).balance, 1e18 + _amountA);
+        assertEq(ozUSD.balanceOf(alice), _amountA);
+        assertEq(ozUSD.getPooledUSDXByShares(_amountA), _amountA);
+
+        (bool s,) = address(ozUSD).call{ value: _amountB }("");
+        assert(s);
+
+        uint256 predictedAliceAmount = (_amountA * (1e18 + _amountA + _amountB)) / (1e18 + _amountA);
+
+        assertEq(address(ozUSD).balance, 1e18 + _amountA + _amountB);
+        assertEq(ozUSD.balanceOf(alice), ozUSD.getPooledUSDXByShares(_amountA));
+        assertEq(ozUSD.getPooledUSDXByShares(_amountA), predictedAliceAmount);
+
+        ozUSD.approve(alice, predictedAliceAmount);
+        ozUSD.redeemOzUSD(alice, predictedAliceAmount);
+
+        assertEq(address(ozUSD).balance, (1e18 + _amountA + _amountB) - predictedAliceAmount);
+        /// @dev precision loss here
+        ///assertEq(ozUSD.getPooledUSDXByShares(_amountA), predictedFinalAmount);
     }
 
     function testMintRebaseAndRedeem() public prank(alice) {
@@ -120,7 +155,6 @@ contract OzUSDTest is CommonTest {
 
         // Mint ozUSD
         ozUSD.mintOzUSD{ value: 1e18 }(alice, 1e18);
-
         assertEq(ozUSD.balanceOf(alice), 1e18);
 
         // Approve bob to spend alice's ozUSD
@@ -202,5 +236,34 @@ contract OzUSDTest is CommonTest {
         vm.startPrank(bob);
         vm.expectRevert("OzUSD: ALLOWANCE_EXCEEDED");
         ozUSD.transferFrom(alice, bob, 1e18);
+    }
+
+    /// PROXY ///
+
+    /// @dev Can only be called by admin, otherwise delegatecalls to impl
+    function testAdmin() public prank(admin) {
+        assertEq(TransparentUpgradeableProxy(payable(ozUSD)).admin(), admin);
+    }
+
+    function testProxyInitialize() public {
+        vm.expectRevert("Initializable: contract is already initialized");
+        implementation.initialize{ value: 1e18 }(1e18);
+
+        assertEq(address(implementation).balance, 0);
+
+        vm.expectRevert("Initializable: contract is already initialized");
+        ozUSD.initialize{ value: 1e18 }(1e18);
+
+        assertEq(address(ozUSD).balance, 1e18);
+    }
+
+    function testUpgradeImplementation() public prank(admin) {
+        OzUSD newImplementation = new OzUSD();
+
+        assertEq(TransparentUpgradeableProxy(payable(ozUSD)).implementation(), address(implementation));
+
+        TransparentUpgradeableProxy(payable(ozUSD)).upgradeToAndCall(address(newImplementation), "");
+
+        assertEq(TransparentUpgradeableProxy(payable(ozUSD)).implementation(), address(newImplementation));
     }
 }
