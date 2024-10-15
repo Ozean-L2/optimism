@@ -125,7 +125,7 @@ contract Setup {
         /// Deploy USDX
         /// 0x640CB39e2D33Aa48EEE9AEC539420aF7Da72be8d
         /// 18 decimals
-        usdx = new MockUSDX{salt: bytes32("USDX")}();
+        usdx = new MockUSDX{ salt: bytes32("USDX") }();
 
         deploy.run();
         console.log("Setup: completed L1 deployment, registering addresses now");
