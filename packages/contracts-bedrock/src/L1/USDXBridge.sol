@@ -47,6 +47,12 @@ contract USDXBridge is Ownable, ReentrancyGuard, ISemver {
     /// @notice An event emitted when an ERC20 token is withdrawn from this contract.
     event WithdrawCoins(address indexed _coin, uint256 _amount, address indexed _to);
 
+    /// @notice An event emitted when en ERC20 stablecoin is set as allowlisted or not (true if allowlisted, false if removed).
+    event AllowlistSet(address indexed _coin, bool _set);
+
+    /// @notice An event emitted when the deposit cap for an ERC20 stablecoin is modified.
+    event DepositCapSet(address indexed _coin, uint256 _newDepositCap);
+
     /// SETUP ///
 
     /// @notice The constructor contract set up.
@@ -68,7 +74,7 @@ contract USDXBridge is Ownable, ReentrancyGuard, ISemver {
         _transferOwnership(_owner);
         portal = _portal;
         config = _config;
-        /// Add allow-listed stablecoins and deposit caps for proxy set up
+        /// Add allow-listed stablecoins and deposit caps
         if (address(config) != address(0)) {
             uint256 length = _stablecoins.length;
             require(
@@ -77,7 +83,9 @@ contract USDXBridge is Ownable, ReentrancyGuard, ISemver {
             );
             for (uint256 i; i < length; ++i) {
                 allowlisted[_stablecoins[i]] = true;
+                emit AllowlistSet(_stablecoins[i], true);
                 depositCap[_stablecoins[i]] = _depositCaps[i];
+                emit DepositCapSet(_stablecoins[i], _depositCaps[i]);
             }
         }
     }
@@ -124,6 +132,7 @@ contract USDXBridge is Ownable, ReentrancyGuard, ISemver {
     ///         otherwise.
     function setAllowlist(address _stablecoin, bool _set) external onlyOwner {
         allowlisted[_stablecoin] = _set;
+        emit AllowlistSet(_stablecoin, _set);
     }
 
     /// @notice This function allows the owner to modify the deposit cap for deposited stablecoins.
@@ -131,6 +140,7 @@ contract USDXBridge is Ownable, ReentrancyGuard, ISemver {
     /// @param  _newDepositCap The new deposit cap.
     function setDepositCap(address _stablecoin, uint256 _newDepositCap) external onlyOwner {
         depositCap[_stablecoin] = _newDepositCap;
+        emit DepositCapSet(_stablecoin, _newDepositCap);
     }
 
     /// @notice This function allows the owner to withdraw any ERC20 token held by this contract.
