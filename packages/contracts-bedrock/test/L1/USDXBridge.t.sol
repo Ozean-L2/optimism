@@ -24,6 +24,8 @@ contract USDXBridgeTest is CommonTest {
     /// USDX Bridge events
     event BridgeDeposit(address indexed _stablecoin, uint256 _amount, address indexed _to);
     event WithdrawCoins(address indexed _coin, uint256 _amount, address indexed _to);
+    event AllowlistSet(address indexed _coin, bool _set);
+    event DepositCapSet(address indexed _coin, uint256 _newDepositCap);
 
     function setUp() public override {
         /// Set up environment
@@ -41,6 +43,22 @@ contract USDXBridgeTest is CommonTest {
         /// Deploy USDX Bridge
         USDXBridgeDeploy deployScript = new USDXBridgeDeploy();
         deployScript.setUp(hexTrust, address(usdc), address(usdt), address(dai), optimismPortal, systemConfig);
+
+        vm.expectEmit(true, true, true, true);
+        emit AllowlistSet(address(usdc), true);
+        vm.expectEmit(true, true, true, true);
+        emit DepositCapSet(address(usdc), 1e30);
+
+        vm.expectEmit(true, true, true, true);
+        emit AllowlistSet(address(usdt), true);
+        vm.expectEmit(true, true, true, true);
+        emit DepositCapSet(address(usdt), 1e30);
+
+        vm.expectEmit(true, true, true, true);
+        emit AllowlistSet(address(dai), true);
+        vm.expectEmit(true, true, true, true);
+        emit DepositCapSet(address(dai), 1e30);
+
         deployScript.run();
         usdxBridge = deployScript.usdxBridge();
     }
@@ -220,8 +238,15 @@ contract USDXBridgeTest is CommonTest {
         /// Owner adds stablecoin to allowlist
         vm.stopPrank();
         vm.startPrank(hexTrust);
+
+        vm.expectEmit(true, true, true, true);
+        emit AllowlistSet(address(usde), true);
         usdxBridge.setAllowlist(address(usde), true);
+
+        vm.expectEmit(true, true, true, true);
+        emit DepositCapSet(address(usde), 1e30);
         usdxBridge.setDepositCap(address(usde), 1e30);
+
         vm.stopPrank();
         vm.startPrank(alice);
 
@@ -254,8 +279,13 @@ contract USDXBridgeTest is CommonTest {
         vm.startPrank(hexTrust);
 
         /// Add USDE
+        vm.expectEmit(true, true, true, true);
+        emit AllowlistSet(address(usde), true);
         usdxBridge.setAllowlist(address(usde), true);
+
         /// Remove DAI
+        vm.expectEmit(true, true, true, true);
+        emit AllowlistSet(address(dai), false);
         usdxBridge.setAllowlist(address(dai), false);
 
         vm.stopPrank();
@@ -274,6 +304,8 @@ contract USDXBridgeTest is CommonTest {
         /// Owner allowed
         vm.startPrank(hexTrust);
 
+        vm.expectEmit(true, true, true, true);
+        emit DepositCapSet(address(usdc), _newCap);
         usdxBridge.setDepositCap(address(usdc), _newCap);
 
         vm.stopPrank();
