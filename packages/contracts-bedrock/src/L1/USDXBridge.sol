@@ -41,13 +41,16 @@ contract USDXBridge is Ownable, ReentrancyGuard, ISemver {
     /// @dev    stablecoin => amount
     mapping(address => uint256) public totalBridged;
 
+    /// EVENTS ///
+
     /// @notice An event emitted when a bridge deposit is made by a user.
     event BridgeDeposit(address indexed _stablecoin, uint256 _amount, address indexed _to);
 
     /// @notice An event emitted when an ERC20 token is withdrawn from this contract.
     event WithdrawCoins(address indexed _coin, uint256 _amount, address indexed _to);
 
-    /// @notice An event emitted when en ERC20 stablecoin is set as allowlisted or not (true if allowlisted, false if removed).
+    /// @notice An event emitted when en ERC20 stablecoin is set as allowlisted or not (true if allowlisted, false if
+    /// removed).
     event AllowlistSet(address indexed _coin, bool _set);
 
     /// @notice An event emitted when the deposit cap for an ERC20 stablecoin is modified.

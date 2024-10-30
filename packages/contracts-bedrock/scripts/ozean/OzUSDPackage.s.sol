@@ -10,7 +10,7 @@ contract OzUSDPackage is Script {
     address public admin = 0xa2ef4A5fB028b4543700AC83e87a0B8b4572202e;
     uint256 public initialSharesAmount = 1e18;
 
-    function run() external broadcast() {
+    function run() external broadcast {
         /// Deploy implementation
         OzUSD implementation = new OzUSD();
 
@@ -21,6 +21,7 @@ contract OzUSDPackage is Script {
 
         /// Deploy wozUSD
         WozUSD wozUSD = new WozUSD(OzUSD(payable(proxy)));
+        wozUSD;
     }
 
     modifier broadcast() {
