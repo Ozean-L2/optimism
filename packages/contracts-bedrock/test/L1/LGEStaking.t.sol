@@ -6,6 +6,7 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { LGEStakingDeploy } from "scripts/ozean/LGEStakingDeploy.s.sol";
 import { LGEStaking } from "src/L1/LGEStaking.sol";
 import { TestERC20Decimals } from "test/mocks/TestERC20.sol";
+import { TestStETH, TestWstETH } from "test/mocks/TestLido.sol";
 
 /// @dev forge test --match-contract LGEStakingTest
 contract LGEStakingTest is CommonTest {
@@ -18,7 +19,6 @@ contract LGEStakingTest is CommonTest {
     TestERC20Decimals public solvBTC;
     TestERC20Decimals public lombardBTC;
     TestERC20Decimals public wSOL;
-    TestERC20Decimals public wstETH;
     TestERC20Decimals public sUSDe;
     TestERC20Decimals public USDe;
     TestERC20Decimals public AUSD;
@@ -27,6 +27,10 @@ contract LGEStakingTest is CommonTest {
     TestERC20Decimals public sDAI;
     /// 6 decimals
     TestERC20Decimals public USDC;
+
+    /// Mock Lido contracts
+    TestStETH public stETH;
+    TestWstETH public wstETH;
 
     address[] public tokens;
     uint256[] public depositCaps;
@@ -39,6 +43,9 @@ contract LGEStakingTest is CommonTest {
     event TokensMigrated(address indexed _user, address indexed _l2Destination, address[] _tokens, uint256[] _amounts);
     event MigrationActivated(bool _set);
     event MigrationContractSet(address _newContract);
+    /// Pausable events
+    event Paused(address account);
+    event Unpaused(address account);
 
     function setUp() public override {
         /// Set up environment
@@ -47,7 +54,6 @@ contract LGEStakingTest is CommonTest {
         solvBTC = new TestERC20Decimals{ salt: bytes32("solvBTC") }(18);
         lombardBTC = new TestERC20Decimals{ salt: bytes32("lombardBTC") }(18);
         wSOL = new TestERC20Decimals{ salt: bytes32("wSOL") }(18);
-        wstETH = new TestERC20Decimals{ salt: bytes32("wstETH") }(18);
         sUSDe = new TestERC20Decimals{ salt: bytes32("sUSDe") }(18);
         USDe = new TestERC20Decimals{ salt: bytes32("USDe") }(18);
         AUSD = new TestERC20Decimals{ salt: bytes32("AUSD") }(18);
@@ -55,6 +61,8 @@ contract LGEStakingTest is CommonTest {
         USDM = new TestERC20Decimals{ salt: bytes32("USDM") }(18);
         sDAI = new TestERC20Decimals{ salt: bytes32("sDAI") }(18);
         USDC = new TestERC20Decimals{ salt: bytes32("USDC") }(6);
+        stETH = new TestStETH();
+        wstETH = new TestWstETH(address(stETH));
 
         /// Deploy Ozean
         super.setUp();
@@ -91,7 +99,7 @@ contract LGEStakingTest is CommonTest {
         depositCaps[12] = 1e30;
 
         LGEStakingDeploy deployScript = new LGEStakingDeploy();
-        deployScript.setUp(hexTrust, lgeMigration, tokens, depositCaps);
+        deployScript.setUp(hexTrust, lgeMigration, address(stETH), address(wstETH), tokens, depositCaps);
         deployScript.run();
         lgeStaking = deployScript.lgeStaking();
     }
@@ -110,7 +118,7 @@ contract LGEStakingTest is CommonTest {
         }
     }
 
-    /// DEPOSIT ///
+    /// DEPOSIT ERC20 ///
 
     function testDepositERC20FailureConditions() public prank(alice) {
         wBTC.mint(alice, 1e31);
@@ -156,8 +164,53 @@ contract LGEStakingTest is CommonTest {
         assertEq(wBTC.balanceOf(address(lgeStaking)), _amount);
     }
 
-    /// depositETH failure
-    /// depositETH success
+    /// DEPOSIT ETH ///
+
+    function testDepositETHFailureConditions() public prank(hexTrust) {
+        vm.deal(hexTrust, 10000 ether);
+
+        /// Amount zero
+        vm.expectRevert("LGE Staking: May not deposit nothing.");
+        lgeStaking.depositETH{ value: 0 }();
+
+        /// Migration activated
+        lgeStaking.setMigrationActivation(true);
+        vm.expectRevert("LGE Staking: May not deposit once migration has been activated.");
+        lgeStaking.depositETH{ value: 1 ether }();
+
+        lgeStaking.setMigrationActivation(false);
+
+        /// Not allowlisted
+        lgeStaking.setAllowlist(address(wstETH), false);
+        vm.expectRevert("LGE Staking: Token must be allowlisted.");
+        lgeStaking.depositETH{ value: 1 ether }();
+
+        lgeStaking.setAllowlist(address(wstETH), true);
+
+        /// Exceeding deposit caps
+        lgeStaking.setDepositCap(address(wstETH), 1 ether);
+        vm.expectRevert("LGE Staking: deposit amount exceeds deposit cap.");
+        lgeStaking.depositETH{ value: 10 ether }();
+    }
+
+    function testDepositETHSuccessConditions(uint256 _amount) public prank(alice) {
+        _amount = bound(_amount, 1, 1e30 - 1);
+        vm.deal(alice, 1e31);
+
+        assertEq(lgeStaking.balance(address(wstETH), alice), 0);
+        assertEq(lgeStaking.totalDeposited(address(wstETH)), 0);
+        assertEq(wstETH.balanceOf(address(lgeStaking)), 0);
+
+        uint256 predictedWSTETHAmount = wstETH.getWstETHByStETH(_amount);
+
+        vm.expectEmit(true, true, true, true);
+        emit Deposit(address(wstETH), predictedWSTETHAmount, alice);
+        lgeStaking.depositETH{ value: _amount }();
+
+        assertEq(lgeStaking.balance(address(wstETH), alice), predictedWSTETHAmount);
+        assertEq(lgeStaking.totalDeposited(address(wstETH)), predictedWSTETHAmount);
+        assertEq(wstETH.balanceOf(address(lgeStaking)), predictedWSTETHAmount);
+    }
 
     /// WITHDRAW ///
 
@@ -198,10 +251,35 @@ contract LGEStakingTest is CommonTest {
         assertEq(wBTC.balanceOf(address(lgeStaking)), _amount0 - _amount1);
     }
 
+    function testDepositETHAndWithdrawSuccessConditions(uint256 _amount0, uint256 _amount1) public prank(alice) {
+        /// Setup
+        _amount0 = bound(_amount0, 2, 1e30 - 1);
+        uint256 predictedWSTETHAmount = wstETH.getWstETHByStETH(_amount0);
+        _amount1 = bound(_amount1, 1, predictedWSTETHAmount);
+        vm.deal(alice, 1e31);
+
+        vm.expectEmit(true, true, true, true);
+        emit Deposit(address(wstETH), predictedWSTETHAmount, alice);
+        lgeStaking.depositETH{ value: _amount0 }();
+
+        assertEq(lgeStaking.balance(address(wstETH), alice), predictedWSTETHAmount);
+        assertEq(lgeStaking.totalDeposited(address(wstETH)), predictedWSTETHAmount);
+        assertEq(wstETH.balanceOf(address(lgeStaking)), predictedWSTETHAmount);
+
+        vm.expectEmit(true, true, true, true);
+        emit Withdraw(address(wstETH), _amount1, alice);
+        lgeStaking.withdraw(address(wstETH), _amount1);
+
+        assertEq(lgeStaking.balance(address(wstETH), alice), predictedWSTETHAmount - _amount1);
+        assertEq(lgeStaking.totalDeposited(address(wstETH)), predictedWSTETHAmount - _amount1);
+        assertEq(wstETH.balanceOf(address(lgeStaking)), predictedWSTETHAmount - _amount1);
+    }
+
     /// MIGRATE ///
 
     /// migrate failure
     /// migrate success
+    /// set migration contract and migrate
 
     /// OWNER ///
 
@@ -250,7 +328,84 @@ contract LGEStakingTest is CommonTest {
         assertEq(lgeStaking.depositCap(address(USDC)), _newCap);
     }
 
-    /// set paused
-    /// set migration
-    /// set migration contract
+    function testSetPaused() public {
+        vm.deal(hexTrust, 10000 ether);
+
+        /// Non-owner revert
+        vm.expectRevert("Ownable: caller is not the owner");
+        lgeStaking.setPaused(true);
+
+        assertEq(lgeStaking.paused(), false);
+
+        /// Owner allowed
+        vm.startPrank(hexTrust);
+
+        vm.expectEmit(true, true, true, true);
+        emit Paused(hexTrust);
+        lgeStaking.setPaused(true);
+
+        assertEq(lgeStaking.paused(), true);
+
+        /// External functions paused
+        vm.expectRevert("Pausable: paused");
+        lgeStaking.depositERC20(address(wBTC), 1e18);
+
+        vm.expectRevert("Pausable: paused");
+        lgeStaking.depositETH{ value: 1e18 }();
+
+        vm.expectRevert("Pausable: paused");
+        lgeStaking.withdraw(address(wBTC), 1e18);
+
+        address[] memory tokensArray;
+        vm.expectRevert("Pausable: paused");
+        lgeStaking.migrate(alice, tokensArray);
+
+        vm.expectEmit(true, true, true, true);
+        emit Unpaused(hexTrust);
+        lgeStaking.setPaused(false);
+
+        assertEq(lgeStaking.paused(), false);
+
+        vm.stopPrank();
+    }
+
+    function testSetMigrationActivation() public {
+        /// Non-owner revert
+        vm.expectRevert("Ownable: caller is not the owner");
+        lgeStaking.setMigrationActivation(true);
+
+        assertEq(lgeStaking.migrationActivated(), false);
+
+        /// External functions paused
+        vm.startPrank(hexTrust);
+
+        vm.expectEmit(true, true, true, true);
+        emit MigrationActivated(true);
+        lgeStaking.setMigrationActivation(true);
+
+        assertEq(lgeStaking.migrationActivated(), true);
+
+        vm.stopPrank();
+    }
+
+    function testSetMigrationContract() public {
+        address newMigrationContract = address(88);
+
+        /// Non-owner revert
+        vm.expectRevert("Ownable: caller is not the owner");
+        lgeStaking.setMigrationContract(newMigrationContract);
+
+        assertEq(address(lgeStaking.LGEMigration()), lgeMigration);
+
+        /// External functions paused
+        vm.startPrank(hexTrust);
+
+        vm.expectEmit(true, true, true, true);
+        emit MigrationContractSet(newMigrationContract);
+        lgeStaking.setMigrationContract(newMigrationContract);
+
+        assertEq(address(lgeStaking.LGEMigration()), newMigrationContract);
+
+        vm.stopPrank();
+    }
 }

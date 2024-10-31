@@ -9,6 +9,8 @@ import { Pausable } from "@openzeppelin/contracts/security/Pausable.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { ILGEMigration } from "src/L1/interface/ILGEMigration.sol";
 
+/// TODO Migration contract V1, tests, nat spec
+
 /// @title  LGE Staking
 /// @notice This contract ...
 /// @dev    Inspired by https://vscode.blockscan.com/ethereum/0xf047ab4c75cebf0eb9ed34ae2c186f3611aeafa6
@@ -18,6 +20,13 @@ contract LGEStaking is Ownable, ReentrancyGuard, Pausable {
     /// @notice Semantic version.
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
+
+    /// @notice The contract address for Lido's staked ether.
+    address public immutable stETH;
+
+    /// @notice The contract address for Lido's wrapped staked ether.
+    /// @dev    All ETH deposits are converted to wstETH on deposit.
+    address public immutable wstETH;
 
     /// @notice The migration contract that facilitates unstaking and deposits to the Ozean L2.
     ILGEMigration public LGEMigration;
@@ -67,9 +76,19 @@ contract LGEStaking is Ownable, ReentrancyGuard, Pausable {
 
     /// SETUP ///
 
-    constructor(address _owner, address _lgeMigration, address[] memory _tokens, uint256[] memory _depositCaps) {
+    constructor(
+        address _owner,
+        address _lgeMigration,
+        address _stETH,
+        address _wstETH,
+        address[] memory _tokens,
+        uint256[] memory _depositCaps
+    ) {
         _transferOwnership(_owner);
         LGEMigration = ILGEMigration(_lgeMigration);
+        stETH = _stETH;
+        wstETH = _wstETH;
+        IstETH(stETH).approve(wstETH, ~uint256(0));
         uint256 length = _tokens.length;
         require(
             length == _depositCaps.length, "LGE Staking: Tokens array length must equal the Deposit Caps array length."
@@ -98,11 +117,20 @@ contract LGEStaking is Ownable, ReentrancyGuard, Pausable {
         emit Deposit(_token, _amount, msg.sender);
     }
 
+    /// @dev All ETH is converted to wstETH
     function depositETH() external payable nonReentrant whenNotPaused {
         require(!migrationActivated, "LGE Staking: May not deposit once migration has been activated.");
         require(msg.value > 0, "LGE Staking: May not deposit nothing.");
-        /// @dev some logic to move the ETH to wstETH
-        ///      should be able to be disabled also if wstETH is removed from allowlist
+        require(allowlisted[wstETH], "LGE Staking: Token must be allowlisted.");
+        uint256 stETHAmount = IstETH(stETH).submit{ value: msg.value }(address(0));
+        uint256 wstETHAmount = IwstETH(wstETH).wrap(stETHAmount);
+        require(
+            totalDeposited[wstETH] + wstETHAmount < depositCap[wstETH],
+            "LGE Staking: deposit amount exceeds deposit cap."
+        );
+        balance[wstETH][msg.sender] += wstETHAmount;
+        totalDeposited[wstETH] += wstETHAmount;
+        emit Deposit(wstETH, wstETHAmount, msg.sender);
     }
 
     /// WITHDRAW ///
@@ -160,7 +188,8 @@ contract LGEStaking is Ownable, ReentrancyGuard, Pausable {
         _set ? _pause() : _unpause();
     }
 
-    /// @notice This function allows the owner to set the migration boolean switch, which when true allows users to migrated
+    /// @notice This function allows the owner to set the migration boolean switch, which when true allows users to
+    /// migrated
     ///         deposited assets to the Ozean L2.
     /// @param  _set The boolean for whether migration is activated. True is activated, false otherwise.
     /// @dev    Activating migration will disable new deposits.
@@ -177,4 +206,12 @@ contract LGEStaking is Ownable, ReentrancyGuard, Pausable {
         LGEMigration = ILGEMigration(_contract);
         emit MigrationContractSet(_contract);
     }
+}
+
+interface IstETH is IERC20 {
+    function submit(address _referral) external payable returns (uint256);
+}
+
+interface IwstETH is IERC20 {
+    function wrap(uint256 _stETHAmount) external returns (uint256);
 }

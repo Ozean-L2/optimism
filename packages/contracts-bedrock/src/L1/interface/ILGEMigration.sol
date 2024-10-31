@@ -15,5 +15,6 @@ interface ILGEMigration {
         address _l2Destination,
         address[] calldata _tokens,
         uint256[] calldata _amounts
-    ) external;
+    )
+        external;
 }
