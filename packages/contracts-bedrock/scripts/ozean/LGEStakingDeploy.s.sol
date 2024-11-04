@@ -6,7 +6,6 @@ import { LGEStaking } from "src/L1/LGEStaking.sol";
 
 contract LGEStakingDeploy is Script {
     LGEStaking public lgeStaking;
-    address public lgeMigration;
     address public stETH;
     address public wstETH;
     address public hexTrust = makeAddr("HEX_TRUST");
@@ -16,7 +15,6 @@ contract LGEStakingDeploy is Script {
     /// @dev Used in testing environment, unnecessary for mainnet deployment
     function setUp(
         address _hexTrust,
-        address _lgeMigration,
         address _stETH,
         address _wstETH,
         address[] memory _tokens,
@@ -25,7 +23,6 @@ contract LGEStakingDeploy is Script {
         external
     {
         hexTrust = _hexTrust;
-        lgeMigration = _lgeMigration;
         stETH = _stETH;
         wstETH = _wstETH;
         tokens = _tokens;
@@ -33,7 +30,7 @@ contract LGEStakingDeploy is Script {
     }
 
     function run() external broadcast {
-        lgeStaking = new LGEStaking(hexTrust, lgeMigration, stETH, wstETH, tokens, depositCaps);
+        lgeStaking = new LGEStaking(hexTrust, stETH, wstETH, tokens, depositCaps);
     }
 
     modifier broadcast() {
