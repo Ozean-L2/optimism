@@ -170,9 +170,9 @@ contract OzUSD is IERC20, ReentrancyGuard, Initializable {
 
         /// @dev Have to minus `_usdxAmount` from denominator given the transfer of funds has already occured
         uint256 sharesToMint = (_usdxAmount * totalShares) / (_getTotalPooledUSDX() - _usdxAmount);
-        uint256 newTotalShares = _mintShares(_to, sharesToMint);
+        _mintShares(_to, sharesToMint);
 
-        _emitTransferAfterMintingShares(_to, newTotalShares);
+        _emitTransferAfterMintingShares(_to, sharesToMint);
     }
 
     /// @notice Redeems ozUSD tokens by burning shares and redeeming the equivalent amount of `_ozUSDAmount` in USDX.
