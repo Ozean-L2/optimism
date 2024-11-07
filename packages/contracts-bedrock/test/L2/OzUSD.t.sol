@@ -12,6 +12,10 @@ contract OzUSDTest is CommonTest {
     OzUSD public implementation;
     OzUSD public ozUSD;
 
+    event TransferShares(address indexed from, address indexed to, uint256 sharesValue);
+    event SharesBurnt(address indexed account, uint256 preRebaseTokenAmount, uint256 postRebaseTokenAmount, uint256 sharesAmount);
+    event YieldDistributed(uint256 _previousTotalBalance, uint256 _newTotalBalance);
+
     function setUp() public override {
         alice = makeAddr("alice");
         bob = makeAddr("bob");
@@ -44,8 +48,9 @@ contract OzUSDTest is CommonTest {
         assertEq(address(ozUSD).balance, 1e18);
         assertEq(ozUSD.getPooledUSDXByShares(sharesAmount), sharesAmount);
 
-        (bool s,) = address(ozUSD).call{ value: sharesAmount }("");
-        assert(s);
+        vm.expectEmit(true, true, true, true);
+        emit YieldDistributed(1e18, 1e18 + sharesAmount);
+        ozUSD.distributeYield{value: sharesAmount}();
 
         assertEq(ozUSD.getPooledUSDXByShares(sharesAmount), (sharesAmount * address(ozUSD).balance) / 1e18);
     }
@@ -62,8 +67,9 @@ contract OzUSDTest is CommonTest {
         assertEq(address(ozUSD).balance, 1e18 + _amountA);
         assertEq(ozUSD.getPooledUSDXByShares(_amountA), _amountA);
 
-        (bool s,) = address(ozUSD).call{ value: _amountB }("");
-        assert(s);
+        vm.expectEmit(true, true, true, true);
+        emit YieldDistributed(1e18 + _amountA, 1e18 + _amountA + _amountB);
+        ozUSD.distributeYield{value: _amountB}();
 
         assertEq(address(ozUSD).balance, 1e18 + _amountA + _amountB);
         assertEq(ozUSD.balanceOf(alice), ozUSD.getPooledUSDXByShares(_amountA));
@@ -102,8 +108,9 @@ contract OzUSDTest is CommonTest {
         assertEq(ozUSD.balanceOf(alice), _amountA);
         assertEq(ozUSD.getPooledUSDXByShares(_amountA), _amountA);
 
-        (bool s,) = address(ozUSD).call{ value: _amountB }("");
-        assert(s);
+        vm.expectEmit(true, true, true, true);
+        emit YieldDistributed(1e18 + _amountA, 1e18 + _amountA + _amountB);
+        ozUSD.distributeYield{value: _amountB}();
 
         uint256 predictedAliceAmount = (_amountA * (1e18 + _amountA + _amountB)) / (1e18 + _amountA);
 
@@ -131,8 +138,9 @@ contract OzUSDTest is CommonTest {
         assertEq(ozUSD.balanceOf(alice), 1e18);
         assertEq(ozUSD.getPooledUSDXByShares(sharesAmount), 1e18);
 
-        (bool s,) = address(ozUSD).call{ value: 1e18 }("");
-        assert(s);
+        vm.expectEmit(true, true, true, true);
+        emit YieldDistributed(2e18, 3e18);
+        ozUSD.distributeYield{value: 1e18}();
 
         assertEq(address(ozUSD).balance, 3e18);
         assertEq(ozUSD.balanceOf(alice), 1.5e18);

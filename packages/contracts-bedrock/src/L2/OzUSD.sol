@@ -49,6 +49,11 @@ contract OzUSD is IERC20, ReentrancyGuard, Initializable {
         address indexed account, uint256 preRebaseTokenAmount, uint256 postRebaseTokenAmount, uint256 sharesAmount
     );
 
+    /// @notice An event for distribution of yield (in the form of USDX) to all participants.
+    /// @param  _previousTotalBalance The total amount of USDX held by the contract before rebasing.
+    /// @param  _newTotalBalance The total amount of USDX held by the contract after rebasing.
+    event YieldDistributed(uint256 _previousTotalBalance, uint256 _newTotalBalance);
+
     /// SETUP ///
 
     constructor() {
@@ -67,6 +72,11 @@ contract OzUSD is IERC20, ReentrancyGuard, Initializable {
     /// EXTERNAL ///
 
     receive() external payable { }
+
+    /// @notice Distributes the yield to the protocol by updating the total pooled USDX balance.
+    function distributeYield() external payable nonReentrant {
+        emit YieldDistributed(_getTotalPooledUSDX() - msg.value, _getTotalPooledUSDX());
+    }
 
     /// @notice Transfers an amount of ozUSD tokens from the caller to a recipient.
     /// @param  _recipient The recipient of the token transfer.
