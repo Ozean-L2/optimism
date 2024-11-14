@@ -131,6 +131,22 @@ contract LGEStakingTest is CommonTest {
         }
     }
 
+    function testDeployRevertWithUnequalArrayLengths() public {
+        l1Addresses = new address[](3);
+        l1Addresses[0] = address(wBTC);
+        l1Addresses[1] = address(solvBTC);
+        l1Addresses[2] = address(lombardBTC);
+        depositCaps = new uint256[](2);
+        depositCaps[0] = 1e30;
+        depositCaps[1] = 1e30;
+        vm.expectRevert("LGE Staking: Tokens array length must equal the Deposit Caps array length.");
+        lgeStaking = new LGEStaking(hexTrust, address(stETH), address(wstETH), l1Addresses, depositCaps);
+
+        /// LGE Migration
+        vm.expectRevert("LGE Migration: L1 addresses array length must equal the L2 addresses array length.");
+        lgeMigration = new LGEMigrationV1(address(l1StandardBridge), address(lgeStaking), l1Addresses, l2Addresses);
+    }
+
     /// DEPOSIT ERC20 ///
 
     function testDepositERC20FailureConditions() public prank(alice) {
