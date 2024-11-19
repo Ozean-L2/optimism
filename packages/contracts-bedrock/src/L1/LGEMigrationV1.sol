@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import { ILGEMigration } from "src/L1/interface/ILGEMigration.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import {ILGEMigration} from "./interface/ILGEMigration.sol";
 
 /// @title  LGE Migration V1
 /// @notice This contract facilitates the migration of staked tokens from the LGE Staking pool
@@ -15,20 +15,40 @@ contract LGEMigrationV1 is ILGEMigration, ReentrancyGuard {
     /// @notice The standard bridge contract for Layer 1 to Layer 2 transfers.
     IL1StandardBridge public immutable l1StandardBridge;
 
+    /// @notice The L1 lido bridge contract.
+    IL1LidoTokensBridge public immutable l1LidoTokensBridge;
+
+    /// @notice The L1 USDX bridge that converts USDC into USDX.
+    IUSDXBridge public immutable usdxBridge;
+
     /// @notice The address of the LGE Staking contract.
     address public immutable lgeStaking;
+
+    /// @notice The address of Circle's USDC.
+    address public immutable usdc;
+
+    /// @notice The address of Wrapped Statked Ether.
+    address public immutable wstETH;
 
     /// @notice A mapping from Layer 1 token addresses to their corresponding Layer 2 addresses.
     mapping(address => address) public l1ToL2Addresses;
 
     constructor(
         address _l1StandardBridge,
+        address _l1LidoTokensBridge,
+        address _usdxBridge,
         address _lgeStaking,
+        address _usdc,
+        address _wstETH,
         address[] memory _l1Addresses,
         address[] memory _l2Addresses
     ) {
         l1StandardBridge = IL1StandardBridge(_l1StandardBridge);
+        l1LidoTokensBridge = IL1LidoTokensBridge(_l1LidoTokensBridge);
+        usdxBridge = IUSDXBridge(_usdxBridge);
         lgeStaking = _lgeStaking;
+        usdc = _usdc;
+        wstETH = _wstETH;
         uint256 length = _l1Addresses.length;
         require(
             length == _l2Addresses.length,
@@ -44,30 +64,36 @@ contract LGEMigrationV1 is ILGEMigration, ReentrancyGuard {
     /// @param _l2Destination The address which will be credited the tokens on Ozean.
     /// @param _tokens The tokens being migrated to Ozean from the LGE Staking contract.
     /// @param _amounts The amounts of each token to be migrated to Ozean for the _user
-    function migrate(
-        address _l2Destination,
-        address[] calldata _tokens,
-        uint256[] calldata _amounts
-    )
+    function migrate(address _l2Destination, address[] calldata _tokens, uint256[] calldata _amounts)
         external
         nonReentrant
     {
         require(msg.sender == lgeStaking, "LGE Migration: Only the staking contract can call this function.");
-
-        /// @dev need to account for USDC => USDX, and wstETH
-
         uint256 length = _tokens.length;
         for (uint256 i; i < length; i++) {
             require(
                 l1ToL2Addresses[_tokens[i]] != address(0), "LGE Migration: L2 contract address not set for migration."
             );
-            IERC20(_tokens[i]).approve(address(l1StandardBridge), _amounts[i]);
-            l1StandardBridge.depositERC20To(
-                _tokens[i], l1ToL2Addresses[_tokens[i]], _l2Destination, _amounts[i], 21000, ""
-            );
+            if (_tokens[i] == usdc) {
+                /// Handle USDC
+                IERC20(_tokens[i]).approve(address(usdxBridge), _amounts[i]);
+                usdxBridge.bridge(_tokens[i], _amounts[i], _l2Destination);
+            } else if (_tokens[i] == wstETH) {
+                /// Handle wstETH
+                IERC20(_tokens[i]).approve(address(l1LidoTokensBridge), _amounts[i]);
+                l1LidoTokensBridge.depositERC20To(_tokens[i], l1ToL2Addresses[_tokens[i]], _l2Destination, _amounts[i], 320000, "");
+            } else {
+                /// Handle other tokens
+                IERC20(_tokens[i]).approve(address(l1StandardBridge), _amounts[i]);
+                l1StandardBridge.depositERC20To(
+                    _tokens[i], l1ToL2Addresses[_tokens[i]], _l2Destination, _amounts[i], 21000, ""
+                );
+            }
         }
     }
 }
+
+/// Interfaces ///
 
 interface IL1StandardBridge {
     /// @custom:legacy
@@ -87,6 +113,20 @@ interface IL1StandardBridge {
         uint256 _amount,
         uint32 _minGasLimit,
         bytes calldata _extraData
-    )
-        external;
+    ) external;
+}
+
+interface IL1LidoTokensBridge {
+    function depositERC20To(
+        address l1Token_,
+        address l2Token_,
+        address to_,
+        uint256 amount_,
+        uint32 l2Gas_,
+        bytes calldata data_
+    ) external;
+}
+
+interface IUSDXBridge {
+    function bridge(address _stablecoin, uint256 _amount, address _to) external;
 }

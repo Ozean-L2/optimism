@@ -33,6 +33,10 @@ contract LGEStakingTest is CommonTest {
     /// Mock Lido contracts
     TestStETH public stETH;
     TestWstETH public wstETH;
+    
+    /// @dev mock these too?
+    address public l1LidoTokensBridge;
+    address public usdxBridge;
 
     address[] public l1Addresses;
     address[] public l2Addresses;
@@ -107,12 +111,21 @@ contract LGEStakingTest is CommonTest {
         lgeStaking = stakingDeployScript.lgeStaking();
 
         /// Deploy LGEMigration
+        /// @dev not the correct L2 address
         l2Addresses = new address[](13);
         l2Addresses[0] = address(wBTC);
-        /// @dev not the correct L2 address
 
         LGEMigrationDeploy migrationDeployScript = new LGEMigrationDeploy();
-        migrationDeployScript.setUp(address(l1StandardBridge), address(lgeStaking), l1Addresses, l2Addresses);
+        migrationDeployScript.setUp(
+            address(l1StandardBridge),
+            address(l1LidoTokensBridge),
+            address(usdxBridge),
+            address(lgeStaking),
+            address(USDC),
+            address(wstETH),
+            l1Addresses,
+            l2Addresses
+        );
         migrationDeployScript.run();
         lgeMigration = migrationDeployScript.lgeMigration();
     }
@@ -144,7 +157,16 @@ contract LGEStakingTest is CommonTest {
 
         /// LGE Migration
         vm.expectRevert("LGE Migration: L1 addresses array length must equal the L2 addresses array length.");
-        lgeMigration = new LGEMigrationV1(address(l1StandardBridge), address(lgeStaking), l1Addresses, l2Addresses);
+        lgeMigration = new LGEMigrationV1(
+            address(l1StandardBridge),
+            address(l1LidoTokensBridge),
+            address(usdxBridge),
+            address(lgeStaking),
+            address(USDC),
+            address(wstETH),
+            l1Addresses,
+            l2Addresses
+        );
     }
 
     /// DEPOSIT ERC20 ///
