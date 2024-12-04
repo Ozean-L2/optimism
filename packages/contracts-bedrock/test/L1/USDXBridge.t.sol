@@ -26,6 +26,7 @@ contract USDXBridgeTest is CommonTest {
     event WithdrawCoins(address indexed _coin, uint256 _amount, address indexed _to);
     event AllowlistSet(address indexed _coin, bool _set);
     event DepositCapSet(address indexed _coin, uint256 _newDepositCap);
+    event GasLimitSet(uint64 _newGasLimit);
 
     function setUp() public override {
         /// Set up environment
@@ -88,6 +89,7 @@ contract USDXBridgeTest is CommonTest {
         assertEq(address(usdxBridge.usdx()), address(usdx));
         assertEq(address(usdxBridge.portal()), address(optimismPortal));
         assertEq(address(usdxBridge.config()), address(systemConfig));
+        assertEq(usdxBridge.gasLimit(), 21000);
         assertEq(usdx.allowance(address(usdxBridge), address(optimismPortal)), 0);
         assertEq(usdxBridge.allowlisted(address(usdc)), true);
         assertEq(usdxBridge.allowlisted(address(usdt)), true);
@@ -311,6 +313,21 @@ contract USDXBridgeTest is CommonTest {
         vm.stopPrank();
 
         assertEq(usdxBridge.depositCap(address(usdc)), _newCap);
+    }
+
+    function testSetGasLimit(uint64 _newGasLimit) public {
+        /// Non-owner revert
+        vm.expectRevert("Ownable: caller is not the owner");
+        usdxBridge.setGasLimit(_newGasLimit);
+        assertEq(usdxBridge.gasLimit(), 21000);
+
+        /// Owner allowed
+        vm.startPrank(hexTrust);
+        vm.expectEmit(true, true, true, true);
+        emit GasLimitSet(_newGasLimit);
+        usdxBridge.setGasLimit(_newGasLimit);
+        vm.stopPrank();
+        assertEq(usdxBridge.gasLimit(), _newGasLimit);
     }
 
     function testWithdrawERC20(uint256 _amount) public {

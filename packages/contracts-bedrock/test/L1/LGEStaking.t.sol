@@ -33,7 +33,7 @@ contract LGEStakingTest is CommonTest {
     /// Mock Lido contracts
     TestStETH public stETH;
     TestWstETH public wstETH;
-    
+
     /// @dev mock these too?
     address public l1LidoTokensBridge;
     address public usdxBridge;
@@ -117,6 +117,7 @@ contract LGEStakingTest is CommonTest {
 
         LGEMigrationDeploy migrationDeployScript = new LGEMigrationDeploy();
         migrationDeployScript.setUp(
+            hexTrust,
             address(l1StandardBridge),
             address(l1LidoTokensBridge),
             address(usdxBridge),
@@ -158,6 +159,7 @@ contract LGEStakingTest is CommonTest {
         /// LGE Migration
         vm.expectRevert("LGE Migration: L1 addresses array length must equal the L2 addresses array length.");
         lgeMigration = new LGEMigrationV1(
+            hexTrust,
             address(l1StandardBridge),
             address(l1LidoTokensBridge),
             address(usdxBridge),
@@ -182,7 +184,12 @@ contract LGEStakingTest is CommonTest {
         vm.expectRevert("LGE Staking: Token must be allowlisted.");
         lgeStaking.depositERC20(address(88), 1);
 
+        /// Exceeding allowance
+        vm.expectRevert();
+        lgeStaking.depositERC20(address(wBTC), 1e13);
+
         /// Exceeding deposit caps
+        wBTC.approve(address(lgeStaking), 1e31);
         vm.expectRevert("LGE Staking: deposit amount exceeds deposit cap.");
         lgeStaking.depositERC20(address(wBTC), 1e31);
 
@@ -423,8 +430,41 @@ contract LGEStakingTest is CommonTest {
         assertEq(lgeStaking.balance(address(wBTC), alice), 0);
         assertEq(lgeStaking.totalDeposited(address(wBTC)), 0);
         assertEq(wBTC.balanceOf(address(lgeStaking)), 0);
+    }
 
-        /// @dev Flesh this out a bit more
+    function testRecoverTokens() public prank(alice) {
+        /// Setup
+        uint256 _amount0 = 100e18;
+        wBTC.mint(alice, _amount0);
+        wBTC.transfer(address(lgeMigration), _amount0);
+        assertEq(wBTC.balanceOf(address(lgeMigration)), _amount0);
+
+        /// Non-owner revert
+        vm.expectRevert("Ownable: caller is not the owner");
+        lgeMigration.recoverTokens(address(wBTC), _amount0, alice);
+
+        vm.stopPrank();
+        vm.startPrank(hexTrust);
+
+        /// Recover
+        lgeMigration.recoverTokens(address(wBTC), _amount0, alice);
+        assertEq(wBTC.balanceOf(address(lgeMigration)), 0);
+    }
+
+    function testSetGasLimit() public prank(alice) {
+        /// Non-owner revert
+        vm.expectRevert("Ownable: caller is not the owner");
+        lgeMigration.setGasLimit(address(wstETH), 1e6);
+
+        assertEq(lgeMigration.gasLimits(address(wstETH)), 21000);
+
+        vm.stopPrank();
+        vm.startPrank(hexTrust);
+
+        /// Set new gas limit
+        lgeMigration.setGasLimit(address(wstETH), 1e6);
+
+        assertEq(lgeMigration.gasLimits(address(wstETH)), 1e6);
     }
 
     /// OWNER ///

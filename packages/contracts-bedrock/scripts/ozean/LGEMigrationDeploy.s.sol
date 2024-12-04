@@ -5,6 +5,7 @@ import { Script } from "forge-std/Script.sol";
 import { LGEMigrationV1 } from "src/L1/LGEMigrationV1.sol";
 
 contract LGEMigrationDeploy is Script {
+    address public hexTrust = makeAddr("HEX_TRUST");
     LGEMigrationV1 public lgeMigration;
     address public l1StandardBridge;
     address public l1LidoTokensBridge;
@@ -17,6 +18,7 @@ contract LGEMigrationDeploy is Script {
 
     /// @dev Used in testing environment, unnecessary for mainnet deployment
     function setUp(
+        address _hexTrust,
         address _l1StandardBridge,
         address _l1LidoTokensBridge,
         address _usdxBridge,
@@ -26,6 +28,7 @@ contract LGEMigrationDeploy is Script {
         address[] memory _l1Addresses,
         address[] memory _l2Addresses
     ) external {
+        hexTrust = _hexTrust;
         l1StandardBridge = _l1StandardBridge;
         l1LidoTokensBridge = _l1LidoTokensBridge;
         usdxBridge = _usdxBridge;
@@ -38,6 +41,7 @@ contract LGEMigrationDeploy is Script {
 
     function run() external broadcast {
         lgeMigration = new LGEMigrationV1(
+            hexTrust,
             l1StandardBridge,
             l1LidoTokensBridge,
             usdxBridge,

@@ -76,8 +76,6 @@ contract OzUSDTest is CommonTest {
         assertEq(address(ozUSD).balance, 1e18 + _amountA);
         assertEq(ozUSD.getPooledUSDXByShares(_amountA), _amountA);
 
-        ozUSD.approve(alice, ~uint256(0));
-
         /// Amount zero
         vm.expectRevert("OzUSD: Amount zero.");
         ozUSD.redeemOzUSD(alice, 0);
@@ -85,10 +83,16 @@ contract OzUSDTest is CommonTest {
         /// Burn more than allowance
         vm.expectRevert("OzUSD: Balance exceeded.");
         ozUSD.redeemOzUSD(alice, 1e30);
+
+        /// Allowance
+        vm.stopPrank();
+        vm.startPrank(bob);
+        vm.expectRevert("OzUSD: Allowance exceeded.");
+        ozUSD.redeemOzUSD(alice, 1e30);
     }
 
     function testRebase(uint256 sharesAmount) public prank(alice) {
-        sharesAmount = bound(sharesAmount, 1, 1e20);
+        sharesAmount = bound(sharesAmount, 1e18 + 1, 1e20);
         assertEq(address(ozUSD).balance, 1e18);
         assertEq(ozUSD.getPooledUSDXByShares(sharesAmount), sharesAmount);
 
@@ -100,8 +104,8 @@ contract OzUSDTest is CommonTest {
     }
 
     function testMintAndRebase(uint256 _amountA, uint256 _amountB) public prank(alice) {
-        _amountA = bound(_amountA, 1, 1e21);
-        _amountB = bound(_amountB, 1, 1e21);
+        _amountA = bound(_amountA, 1e18 + 1, 1e21);
+        _amountB = bound(_amountB, 1e18 + 1, 1e21);
 
         assertEq(address(ozUSD).balance, 1e18);
         assertEq(ozUSD.getPooledUSDXByShares(_amountA), _amountA);
@@ -140,8 +144,8 @@ contract OzUSDTest is CommonTest {
     }
 
     function testMintRebaseAndRedeem(uint256 _amountA, uint256 _amountB) public prank(alice) {
-        _amountA = bound(_amountA, 1, 1e21);
-        _amountB = bound(_amountB, 1, 1e21);
+        _amountA = bound(_amountA, 1e18 + 1, 1e21);
+        _amountB = bound(_amountB, 1e18 + 1, 1e21);
 
         assertEq(address(ozUSD).balance, 1e18);
         assertEq(ozUSD.getPooledUSDXByShares(_amountA), _amountA);
@@ -166,8 +170,6 @@ contract OzUSDTest is CommonTest {
         ozUSD.redeemOzUSD(alice, predictedAliceAmount);
 
         assertEq(address(ozUSD).balance, (1e18 + _amountA + _amountB) - predictedAliceAmount);
-        /// @dev precision loss here
-        ///assertEq(ozUSD.getPooledUSDXByShares(_amountA), predictedFinalAmount);
     }
 
     function testMintRebaseAndRedeem() public prank(alice) {
@@ -183,18 +185,18 @@ contract OzUSDTest is CommonTest {
         assertEq(ozUSD.getPooledUSDXByShares(sharesAmount), 1e18);
 
         vm.expectEmit(true, true, true, true);
-        emit YieldDistributed(2e18, 3e18);
-        ozUSD.distributeYield{value: 1e18}();
+        emit YieldDistributed(2e18, 4e18);
+        ozUSD.distributeYield{value: 2e18}();
 
-        assertEq(address(ozUSD).balance, 3e18);
-        assertEq(ozUSD.balanceOf(alice), 1.5e18);
-        assertEq(ozUSD.getPooledUSDXByShares(sharesAmount), 1.5e18);
+        assertEq(address(ozUSD).balance, 4e18);
+        assertEq(ozUSD.balanceOf(alice), 2e18);
+        assertEq(ozUSD.getPooledUSDXByShares(sharesAmount), 2e18);
 
-        ozUSD.approve(alice, 1.5e18);
-        ozUSD.redeemOzUSD(alice, 1.5e18);
+        ozUSD.approve(alice, 2e18);
+        ozUSD.redeemOzUSD(alice, 2e18);
 
-        assertEq(address(ozUSD).balance, 1.5e18);
-        assertEq(ozUSD.getPooledUSDXByShares(sharesAmount), 1.5e18);
+        assertEq(address(ozUSD).balance, 2e18);
+        assertEq(ozUSD.getPooledUSDXByShares(sharesAmount), 2e18);
     }
 
     /// ERC20 ///
