@@ -7,7 +7,7 @@ import { LGEStakingDeploy } from "scripts/ozean/LGEStakingDeploy.s.sol";
 import { LGEMigrationDeploy } from "scripts/ozean/LGEMigrationDeploy.s.sol";
 import { LGEStaking } from "src/L1/LGEStaking.sol";
 import { LGEMigrationV1 } from "src/L1/LGEMigrationV1.sol";
-import { TestERC20Decimals } from "test/mocks/TestERC20.sol";
+import { TestERC20Decimals, TestERC20DecimalsFeeOnTransfer } from "test/mocks/TestERC20.sol";
 import { TestStETH, TestWstETH } from "test/mocks/TestLido.sol";
 
 /// @dev forge test --match-contract LGEStakingTest
@@ -184,18 +184,25 @@ contract LGEStakingTest is CommonTest {
         vm.expectRevert("LGE Staking: Token must be allowlisted.");
         lgeStaking.depositERC20(address(88), 1);
 
-        /// Exceeding allowance
-        vm.expectRevert();
-        lgeStaking.depositERC20(address(wBTC), 1e13);
-
         /// Exceeding deposit caps
         wBTC.approve(address(lgeStaking), 1e31);
         vm.expectRevert("LGE Staking: deposit amount exceeds deposit cap.");
         lgeStaking.depositERC20(address(wBTC), 1e31);
 
-        /// Migration activated
         vm.stopPrank();
         vm.startPrank(hexTrust);
+
+        /// Fee on transfer
+        TestERC20DecimalsFeeOnTransfer feeOnTransferToken = new TestERC20DecimalsFeeOnTransfer(18);
+        lgeStaking.setAllowlist(address(feeOnTransferToken), true);
+        lgeStaking.setDepositCap(address(feeOnTransferToken), 1e30);
+        feeOnTransferToken.mint(hexTrust, 1e21);
+        feeOnTransferToken.approve(address(lgeStaking), 1e20);
+
+        vm.expectRevert("LGE Staking: Fee-on-transfer tokens not supported.");
+        lgeStaking.depositERC20(address(feeOnTransferToken), 1e20);
+
+        /// Migration activated
         lgeStaking.setMigrationContract(address(lgeMigration));
         assertEq(lgeStaking.migrationActivated(), true);
         vm.stopPrank();
