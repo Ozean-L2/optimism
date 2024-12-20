@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 import { console2 as console } from "forge-std/console2.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { OzUSD } from "src/L2/OzUSD.sol";
-import { OzUSDDeploy, TransparentUpgradeableProxy } from "scripts/ozean/OzUSDDeploy.s.sol";
+import { OzUSDDeploy } from "scripts/ozean/OzUSDDeploy.s.sol";
 
 /// @dev forge test --match-contract OzUSDTest -vvv
 contract OzUSDTest is CommonTest {
@@ -26,9 +26,9 @@ contract OzUSDTest is CommonTest {
 
         /// Deploy OzUSD
         OzUSDDeploy deployScript = new OzUSDDeploy();
+        deployScript.setUp(admin);
         deployScript.run();
-        implementation = deployScript.implementation();
-        ozUSD = OzUSD(payable(deployScript.proxy()));
+        ozUSD = deployScript.ozUSD();
     }
 
     /// SETUP ///
@@ -41,12 +41,15 @@ contract OzUSDTest is CommonTest {
         assertEq(ozUSD.decimals(), 18);
     }
 
-    function testInitializeRevertConditions() public {
+    function testDeployRevertConditions() public {
+        /// Deploy with less than 1 USDX
         uint256 initialSharesAmount = 1e18;
+        vm.expectRevert("OzUSD: Must deploy with at least one USDX.");
+        new OzUSD{value: initialSharesAmount - 1}(admin, initialSharesAmount - 1);
+
+        /// Wrong value
         vm.expectRevert("OzUSD: Incorrect value.");
-        new TransparentUpgradeableProxy{value: initialSharesAmount - 1}(
-            address(implementation), admin, abi.encodeWithSignature("initialize(uint256)", initialSharesAmount)
-        );
+        new OzUSD{value: initialSharesAmount}(admin, initialSharesAmount - 1);
     }
 
     /// REBASE ///
@@ -98,7 +101,8 @@ contract OzUSDTest is CommonTest {
 
         vm.expectEmit(true, true, true, true);
         emit YieldDistributed(1e18, 1e18 + sharesAmount);
-        ozUSD.distributeYield{value: sharesAmount}();
+        (bool s, ) = address(ozUSD).call{value: sharesAmount}("");
+        require(s);
 
         assertEq(ozUSD.getPooledUSDXByShares(sharesAmount), (sharesAmount * address(ozUSD).balance) / 1e18);
     }
@@ -117,7 +121,8 @@ contract OzUSDTest is CommonTest {
 
         vm.expectEmit(true, true, true, true);
         emit YieldDistributed(1e18 + _amountA, 1e18 + _amountA + _amountB);
-        ozUSD.distributeYield{value: _amountB}();
+        (bool s, ) = address(ozUSD).call{value: _amountB}("");
+        require(s);
 
         assertEq(address(ozUSD).balance, 1e18 + _amountA + _amountB);
         assertEq(ozUSD.balanceOf(alice), ozUSD.getPooledUSDXByShares(_amountA));
@@ -158,7 +163,8 @@ contract OzUSDTest is CommonTest {
 
         vm.expectEmit(true, true, true, true);
         emit YieldDistributed(1e18 + _amountA, 1e18 + _amountA + _amountB);
-        ozUSD.distributeYield{value: _amountB}();
+        (bool s, ) = address(ozUSD).call{value: _amountB}("");
+        require(s);
 
         uint256 predictedAliceAmount = (_amountA * (1e18 + _amountA + _amountB)) / (1e18 + _amountA);
 
@@ -186,7 +192,8 @@ contract OzUSDTest is CommonTest {
 
         vm.expectEmit(true, true, true, true);
         emit YieldDistributed(2e18, 4e18);
-        ozUSD.distributeYield{value: 2e18}();
+        (bool s, ) = address(ozUSD).call{value: 2e18}("");
+        require(s);
 
         assertEq(address(ozUSD).balance, 4e18);
         assertEq(ozUSD.balanceOf(alice), 2e18);
@@ -341,34 +348,5 @@ contract OzUSDTest is CommonTest {
         vm.startPrank(bob);
         vm.expectRevert("OzUSD: Allowance exceeded.");
         ozUSD.transferFrom(alice, bob, 1e18);
-    }
-
-    /// PROXY ///
-
-    /// @dev Can only be called by admin, otherwise delegatecalls to impl
-    function testAdmin() public prank(admin) {
-        assertEq(TransparentUpgradeableProxy(payable(ozUSD)).admin(), admin);
-    }
-
-    function testProxyInitialize() public {
-        vm.expectRevert("Initializable: contract is already initialized");
-        implementation.initialize{ value: 1e18 }(1e18);
-
-        assertEq(address(implementation).balance, 0);
-
-        vm.expectRevert("Initializable: contract is already initialized");
-        ozUSD.initialize{ value: 1e18 }(1e18);
-
-        assertEq(address(ozUSD).balance, 1e18);
-    }
-
-    function testUpgradeImplementation() public prank(admin) {
-        OzUSD newImplementation = new OzUSD();
-
-        assertEq(TransparentUpgradeableProxy(payable(ozUSD)).implementation(), address(implementation));
-
-        TransparentUpgradeableProxy(payable(ozUSD)).upgradeToAndCall(address(newImplementation), "");
-
-        assertEq(TransparentUpgradeableProxy(payable(ozUSD)).implementation(), address(newImplementation));
     }
 }

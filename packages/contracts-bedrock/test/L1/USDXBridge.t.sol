@@ -74,7 +74,7 @@ contract USDXBridgeTest is CommonTest {
         uint256[] memory depositCaps = new uint256[](2);
         depositCaps[0] = 1e30;
         depositCaps[1] = 1e30;
-        vm.expectRevert("USDXBridge: Stablecoins array length must equal the Deposit Caps array length.");
+        vm.expectRevert("USDX Bridge: Stablecoins array length must equal the Deposit Caps array length.");
         usdxBridge = new USDXBridge(hexTrust, optimismPortal, systemConfig, stablecoins, depositCaps);
     }
 
@@ -134,16 +134,16 @@ contract USDXBridgeTest is CommonTest {
 
         /// Non-accepted stablecoin/ERC20
         TestERC20Decimals usde = new TestERC20Decimals(18);
-        vm.expectRevert("USDXBridge: Stablecoin not accepted.");
+        vm.expectRevert("USDX Bridge: Stablecoin not accepted.");
         usdxBridge.bridge(address(usde), _amount, alice);
 
         /// Deposit zero
-        vm.expectRevert("USDXBridge: May not bridge nothing.");
+        vm.expectRevert("USDX Bridge: May not bridge nothing.");
         usdxBridge.bridge(address(dai), 0, alice);
 
         /// Deposit Cap exceeded
         uint256 excess = usdxBridge.depositCap(address(dai)) + 1;
-        vm.expectRevert("USDXBridge: Bridge amount exceeds deposit cap.");
+        vm.expectRevert("USDX Bridge: Bridge amount exceeds deposit cap.");
         usdxBridge.bridge(address(dai), excess, alice);
     }
 

@@ -2,23 +2,25 @@
 pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
-import { TransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import { OzUSD } from "src/L2/OzUSD.sol";
 
 contract OzUSDDeploy is Script {
-    OzUSD public implementation;
-    TransparentUpgradeableProxy public proxy;
-    address public admin = makeAddr("admin");
+    OzUSD public ozUSD;
+    address public hexTrust;
     uint256 public initialSharesAmount = 1e18;
 
-    function run() external broadcast {
-        /// Deploy implementation
-        implementation = new OzUSD();
+    function setUp(address _hexTrust) external {
+        hexTrust = _hexTrust;
+    }
 
-        /// Deploy Proxy
-        proxy = new TransparentUpgradeableProxy{ value: initialSharesAmount }(
-            address(implementation), admin, abi.encodeWithSignature("initialize(uint256)", initialSharesAmount)
-        );
+    function run() external payable broadcast {
+        require(hexTrust != address(0), "Script: Zero address.");
+        require(initialSharesAmount == 1e18, "Script: Zero amount.");
+
+        ozUSD = new OzUSD{value: initialSharesAmount}(hexTrust, initialSharesAmount);
+
+        require(address(ozUSD).balance == 1e18, "Script: Initial supply.");
+        require(ozUSD.balanceOf(address(0xdead)) == 1e18, "Script: Initial supply.");
     }
 
     modifier broadcast() {

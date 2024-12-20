@@ -8,7 +8,6 @@ import { USDXBridge } from "src/L1/USDXBridge.sol";
 
 contract USDXBridgeDeploy is Script {
     USDXBridge public usdxBridge;
-
     address public hexTrust;
     address public usdc;
     address public usdt;
@@ -24,9 +23,7 @@ contract USDXBridgeDeploy is Script {
         address _dai,
         OptimismPortal _optimismPortal,
         SystemConfig _systemConfig
-    )
-        external
-    {
+    ) external {
         hexTrust = _hexTrust;
         usdc = _usdc;
         usdt = _usdt;
@@ -44,6 +41,17 @@ contract USDXBridgeDeploy is Script {
         depositCaps[0] = 1e30;
         depositCaps[1] = 1e30;
         depositCaps[2] = 1e30;
+
+        require(hexTrust != address(0), "Script: Zero address.");
+        require(address(optimismPortal) != address(0), "Script: Zero address.");
+        require(address(systemConfig) != address(0), "Script: Zero address.");
+
+        uint256 length = stablecoins.length;
+        require(length == depositCaps.length, "Script: Unequal length.");
+        for (uint256 i; i < length; i++) {
+            require(stablecoins[i] != address(0), "Script: Zero address.");
+        }
+
         usdxBridge = new USDXBridge(hexTrust, optimismPortal, systemConfig, stablecoins, depositCaps);
     }
 

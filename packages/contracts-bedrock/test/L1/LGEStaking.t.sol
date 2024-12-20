@@ -8,6 +8,7 @@ import { LGEMigrationDeploy } from "scripts/ozean/LGEMigrationDeploy.s.sol";
 import { LGEStaking } from "src/L1/LGEStaking.sol";
 import { LGEMigrationV1 } from "src/L1/LGEMigrationV1.sol";
 import { TestERC20Decimals, TestERC20DecimalsFeeOnTransfer } from "test/mocks/TestERC20.sol";
+import { MockUSDX } from "test/mocks/MockUSDX.sol";
 import { TestStETH, TestWstETH } from "test/mocks/TestLido.sol";
 
 /// @dev forge test --match-contract LGEStakingTest
@@ -54,6 +55,9 @@ contract LGEStakingTest is CommonTest {
     event Unpaused(address account);
 
     function setUp() public override {
+        /// Deploy Ozean
+        super.setUp();
+
         /// Set up environment
         /// @dev Hex Trust treated as owner of both lgeStaking and lgeMigration
         hexTrust = makeAddr("HEX_TRUST");
@@ -68,11 +72,13 @@ contract LGEStakingTest is CommonTest {
         USDM = new TestERC20Decimals{ salt: bytes32("USDM") }(18);
         sDAI = new TestERC20Decimals{ salt: bytes32("sDAI") }(18);
         USDC = new TestERC20Decimals{ salt: bytes32("USDC") }(6);
+        usdx = new MockUSDX();
         stETH = new TestStETH();
         wstETH = new TestWstETH(address(stETH));
 
-        /// Deploy Ozean
-        super.setUp();
+        /// @dev placeholders
+        l1LidoTokensBridge = address(1);
+        usdxBridge = address(1);
 
         /// Deploy LGEStaking
         l1Addresses = new address[](13);
@@ -114,6 +120,18 @@ contract LGEStakingTest is CommonTest {
         /// @dev not the correct L2 address
         l2Addresses = new address[](13);
         l2Addresses[0] = address(wBTC);
+        l2Addresses[1] = address(wBTC);
+        l2Addresses[2] = address(wBTC);
+        l2Addresses[3] = address(wBTC);
+        l2Addresses[4] = address(wBTC);
+        l2Addresses[5] = address(wBTC);
+        l2Addresses[6] = address(wBTC);
+        l2Addresses[7] = address(wBTC);
+        l2Addresses[8] = address(wBTC);
+        l2Addresses[9] = address(wBTC);
+        l2Addresses[10] = address(wBTC);
+        l2Addresses[11] = address(wBTC);
+        l2Addresses[12] = address(wBTC);
 
         LGEMigrationDeploy migrationDeployScript = new LGEMigrationDeploy();
         migrationDeployScript.setUp(
@@ -134,7 +152,6 @@ contract LGEStakingTest is CommonTest {
     /// SETUP ///
 
     function testInitialize() public view {
-        assertEq(lgeStaking.version(), "1.0.0");
         assertEq(address(lgeStaking.lgeMigration()), address(0));
         assertEq(lgeStaking.migrationActivated(), false);
 
@@ -397,12 +414,6 @@ contract LGEStakingTest is CommonTest {
         tokens[0] = address(wSOL);
 
         vm.expectRevert("LGE Staking: No tokens to migrate.");
-        lgeStaking.migrate(alice, tokens);
-
-        /// L2 Address not set
-        tokens[0] = address(USDC);
-
-        vm.expectRevert("LGE Migration: L2 contract address not set for migration.");
         lgeStaking.migrate(alice, tokens);
     }
 

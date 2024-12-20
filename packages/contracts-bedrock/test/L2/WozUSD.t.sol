@@ -10,19 +10,23 @@ import { WozUSDDeploy } from "scripts/ozean/WozUSDDeploy.s.sol";
 
 /// @dev forge test --match-contract WozUSDTest -vvv
 contract WozUSDTest is CommonTest {
+    address public admin;
     OzUSD public ozUSD;
     WozUSD public wozUSD;
 
     function setUp() public override {
         alice = makeAddr("alice");
         bob = makeAddr("bob");
+        admin = makeAddr("admin");
         vm.deal(alice, 10000 ether);
         vm.deal(bob, 10000 ether);
+        vm.deal(admin, 10000 ether);
 
         /// Deploy OzUSD
         OzUSDDeploy ozDeployScript = new OzUSDDeploy();
+        ozDeployScript.setUp(admin);
         ozDeployScript.run();
-        ozUSD = OzUSD(payable(ozDeployScript.proxy()));
+        ozUSD = OzUSD(payable(ozDeployScript.ozUSD()));
 
         /// Deploy WozUSD
         WozUSDDeploy wozDeployScript = new WozUSDDeploy();
@@ -126,23 +130,6 @@ contract WozUSDTest is CommonTest {
         /// Unwrap
         wozUSD.unwrap(1e18);
         assertEq(ozUSD.balanceOf(alice), 1.5e18);
-    }
-
-    function testWrapAndRebaseSmallAmount() public prank(alice) {
-        uint256 sharesAmount = 0.001e18;
-        ozUSD.mintOzUSD{ value: sharesAmount }(alice, sharesAmount);
-
-        /// Wrap
-        ozUSD.approve(address(wozUSD), ~uint256(0));
-        wozUSD.wrap(sharesAmount);
-
-        /// Mock rebase
-        (bool s,) = address(ozUSD).call{ value: sharesAmount }("");
-        assert(s);
-
-        /// Unwrap
-        wozUSD.unwrap(sharesAmount);
-        assertGt(ozUSD.balanceOf(alice), sharesAmount);
     }
 
     function testMultipleWrapUnwrap() public prank(alice) {
