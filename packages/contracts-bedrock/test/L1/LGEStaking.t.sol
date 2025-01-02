@@ -41,6 +41,7 @@ contract LGEStakingTest is CommonTest {
 
     address[] public l1Addresses;
     address[] public l2Addresses;
+    address[] public restrictedL2Addresses;
     uint256[] public depositCaps;
 
     /// LGEStaking events
@@ -133,6 +134,11 @@ contract LGEStakingTest is CommonTest {
         l2Addresses[11] = address(wBTC);
         l2Addresses[12] = address(wBTC);
 
+        /// @dev abitrary restricted L2 destinations
+        restrictedL2Addresses = new address[](2);
+        restrictedL2Addresses[0] = address(1000);
+        restrictedL2Addresses[1] = address(1001);
+
         LGEMigrationDeploy migrationDeployScript = new LGEMigrationDeploy();
         migrationDeployScript.setUp(
             hexTrust,
@@ -143,7 +149,8 @@ contract LGEStakingTest is CommonTest {
             address(USDC),
             address(wstETH),
             l1Addresses,
-            l2Addresses
+            l2Addresses,
+            restrictedL2Addresses
         );
         migrationDeployScript.run();
         lgeMigration = migrationDeployScript.lgeMigration();
@@ -184,7 +191,8 @@ contract LGEStakingTest is CommonTest {
             address(USDC),
             address(wstETH),
             l1Addresses,
-            l2Addresses
+            l2Addresses,
+            restrictedL2Addresses
         );
     }
 
