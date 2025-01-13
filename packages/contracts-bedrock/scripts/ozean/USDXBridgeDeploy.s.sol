@@ -5,6 +5,7 @@ import { Script } from "forge-std/Script.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { USDXBridge } from "src/L1/USDXBridge.sol";
+import "forge-std/console.sol";
 
 contract USDXBridgeDeploy is Script {
     USDXBridge public usdxBridge;
@@ -51,6 +52,9 @@ contract USDXBridgeDeploy is Script {
         for (uint256 i; i < length; i++) {
             require(stablecoins[i] != address(0), "Script: Zero address.");
         }
+
+        bytes memory deployData = abi.encode(hexTrust, optimismPortal, systemConfig, stablecoins, depositCaps);
+        console.logBytes(deployData);
 
         usdxBridge = new USDXBridge(hexTrust, optimismPortal, systemConfig, stablecoins, depositCaps);
     }

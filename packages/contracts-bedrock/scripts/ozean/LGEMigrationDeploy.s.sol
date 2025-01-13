@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
 import { LGEMigrationV1 } from "src/L1/LGEMigrationV1.sol";
+import "forge-std/console.sol";
 
 contract LGEMigrationDeploy is Script {
     LGEMigrationV1 public lgeMigration;
@@ -57,6 +58,19 @@ contract LGEMigrationDeploy is Script {
             require(l1Addresses[i] != address(0), "Script: Zero address.");
             require(l2Addresses[i] != address(0), "Script: Zero address.");
         }
+
+        bytes memory deployData = abi.encode(hexTrust,
+            l1StandardBridge,
+            l1LidoTokensBridge,
+            usdxBridge,
+            lgeStaking,
+            usdc,
+            wstETH,
+            l1Addresses,
+            l2Addresses,
+            restrictedL2Addresses
+        );
+        console.logBytes(deployData);
 
         lgeMigration = new LGEMigrationV1(
             hexTrust,

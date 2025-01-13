@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
 import { LGEStaking } from "src/L1/LGEStaking.sol";
+import "forge-std/console.sol";
 
 contract LGEStakingDeploy is Script {
     LGEStaking public lgeStaking;
@@ -38,6 +39,9 @@ contract LGEStakingDeploy is Script {
             require(tokens[i] != address(0), "Script: Zero address.");
             require(depositCaps[i] != 0, "Script: Zero address.");
         }
+
+        bytes memory deployData = abi.encode(hexTrust, stETH, wstETH, tokens, depositCaps);
+        console.logBytes(deployData);
 
         lgeStaking = new LGEStaking(hexTrust, stETH, wstETH, tokens, depositCaps);
     }
