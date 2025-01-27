@@ -26,6 +26,7 @@ contract USDXBridgeTest is CommonTest {
     event WithdrawCoins(address indexed _coin, uint256 _amount, address indexed _to);
     event AllowlistSet(address indexed _coin, bool _set);
     event DepositCapSet(address indexed _coin, uint256 _newDepositCap);
+    event GasLimitSet(uint64 _newGasLimit);
 
     function setUp() public override {
         /// Set up environment
@@ -73,7 +74,7 @@ contract USDXBridgeTest is CommonTest {
         uint256[] memory depositCaps = new uint256[](2);
         depositCaps[0] = 1e30;
         depositCaps[1] = 1e30;
-        vm.expectRevert("USDXBridge: Stablecoins array length must equal the Deposit Caps array length.");
+        vm.expectRevert("USDX Bridge: Stablecoins array length must equal the Deposit Caps array length.");
         usdxBridge = new USDXBridge(hexTrust, optimismPortal, systemConfig, stablecoins, depositCaps);
     }
 
@@ -88,6 +89,7 @@ contract USDXBridgeTest is CommonTest {
         assertEq(address(usdxBridge.usdx()), address(usdx));
         assertEq(address(usdxBridge.portal()), address(optimismPortal));
         assertEq(address(usdxBridge.config()), address(systemConfig));
+        assertEq(usdxBridge.gasLimit(), 21000);
         assertEq(usdx.allowance(address(usdxBridge), address(optimismPortal)), 0);
         assertEq(usdxBridge.allowlisted(address(usdc)), true);
         assertEq(usdxBridge.allowlisted(address(usdt)), true);
@@ -132,16 +134,16 @@ contract USDXBridgeTest is CommonTest {
 
         /// Non-accepted stablecoin/ERC20
         TestERC20Decimals usde = new TestERC20Decimals(18);
-        vm.expectRevert("USDXBridge: Stablecoin not accepted.");
+        vm.expectRevert("USDX Bridge: Stablecoin not accepted.");
         usdxBridge.bridge(address(usde), _amount, alice);
 
         /// Deposit zero
-        vm.expectRevert("USDXBridge: May not bridge nothing.");
+        vm.expectRevert("USDX Bridge: May not bridge nothing.");
         usdxBridge.bridge(address(dai), 0, alice);
 
         /// Deposit Cap exceeded
         uint256 excess = usdxBridge.depositCap(address(dai)) + 1;
-        vm.expectRevert("USDXBridge: Bridge amount exceeds deposit cap.");
+        vm.expectRevert("USDX Bridge: Bridge amount exceeds deposit cap.");
         usdxBridge.bridge(address(dai), excess, alice);
     }
 
@@ -311,6 +313,21 @@ contract USDXBridgeTest is CommonTest {
         vm.stopPrank();
 
         assertEq(usdxBridge.depositCap(address(usdc)), _newCap);
+    }
+
+    function testSetGasLimit(uint64 _newGasLimit) public {
+        /// Non-owner revert
+        vm.expectRevert("Ownable: caller is not the owner");
+        usdxBridge.setGasLimit(_newGasLimit);
+        assertEq(usdxBridge.gasLimit(), 21000);
+
+        /// Owner allowed
+        vm.startPrank(hexTrust);
+        vm.expectEmit(true, true, true, true);
+        emit GasLimitSet(_newGasLimit);
+        usdxBridge.setGasLimit(_newGasLimit);
+        vm.stopPrank();
+        assertEq(usdxBridge.gasLimit(), _newGasLimit);
     }
 
     function testWithdrawERC20(uint256 _amount) public {
