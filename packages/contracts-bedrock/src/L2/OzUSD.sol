@@ -1,21 +1,32 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /// @title  Ozean USD (ozUSD) Token Contract
 /// @notice This contract implements a rebasing token (ozUSD), where token balances are dynamic and calculated
 ///         based on shares controlled by each account. The total pooled USDX (protocol-controlled USDX) determines the
 ///         total balances; meaning that any USDX sent to this contract automatically rebases all user balances.
 ///         1 USDX == 1 ozUSD.
-/// @dev    This contract does not fully comply with the ERC20 standard as rebasing events do not emit `Transfer` events.
-///         This contract is inspired by Lido's stETH contract: https://vscode.blockscan.com/ethereum/0x17144556fd3424edc8fc8a4c940b2d04936d17eb
-contract OzUSD is IERC20, ReentrancyGuard, Initializable {
+/// @dev    This contract does not fully comply with the ERC20 standard as rebasing events do not emit `Transfer`
+///         events.
+///         This contract is inspired by Lido's stETH contract:
+///         https://vscode.blockscan.com/ethereum/0x17144556fd3424edc8fc8a4c940b2d04936d17eb
+contract OzUSD is IERC20, ReentrancyGuard, Pausable, Ownable {
+    /// @notice The name of the token, Ozean USD.
     string public constant name = "Ozean USD";
+
+    /// @notice The symbol of the token, ozUSD.
     string public constant symbol = "ozUSD";
+
+    /// @notice The number of decimals the token uses, 18.
     uint8 public constant decimals = 18;
+
+    /// @notice Total number of shares in circulation for ozUSD.
+    /// @dev    This is used to calculate the rebased ozUSD balances.
     uint256 private totalShares;
 
     /// @notice A mapping from addresses to shares controlled by each account.
@@ -47,24 +58,22 @@ contract OzUSD is IERC20, ReentrancyGuard, Initializable {
         address indexed account, uint256 preRebaseTokenAmount, uint256 postRebaseTokenAmount, uint256 sharesAmount
     );
 
+    /// @notice An event for distribution of yield (in the form of USDX) to all participants.
+    /// @param  _previousTotalBalance The total amount of USDX held by the contract before rebasing.
+    /// @param  _newTotalBalance The total amount of USDX held by the contract after rebasing.
+    event YieldDistributed(uint256 _previousTotalBalance, uint256 _newTotalBalance);
+
     /// SETUP ///
 
-    constructor() {
-        _disableInitializers();
-    }
-
-    /// @notice Initializes the contract with a specific amount of shares.
-    /// @dev    Requires the sender to send USDX equal to the number of shares specified in `_sharesAmount`.
-    /// @param  _sharesAmount The number of shares to initialize.
-    function initialize(uint256 _sharesAmount) external payable initializer nonReentrant {
-        require(msg.value == _sharesAmount, "OzUSD: INCORRECT_VALUE");
+    constructor(address _owner, uint256 _sharesAmount) payable {
+        _transferOwnership(_owner);
+        require(msg.value >= 1 ether, "OzUSD: Must deploy with at least one USDX.");
+        require(msg.value == _sharesAmount, "OzUSD: Incorrect value.");
         _mintShares(address(0xdead), _sharesAmount);
         _emitTransferAfterMintingShares(address(0xdead), _sharesAmount);
     }
 
     /// EXTERNAL ///
-
-    receive() external payable { }
 
     /// @notice Transfers an amount of ozUSD tokens from the caller to a recipient.
     /// @param  _recipient The recipient of the token transfer.
@@ -94,7 +103,7 @@ contract OzUSD is IERC20, ReentrancyGuard, Initializable {
     /// @param  _spender The address authorized to spend the tokens.
     /// @param  _amount The number of tokens allowed to be spent.
     /// @return success Returns `true` if the approval was successful.
-    /// @dev The `_amount` argument is the amount of tokens, not shares.
+    /// @dev    The `_amount` argument is the amount of tokens, not shares.
     function approve(address _spender, uint256 _amount) external nonReentrant returns (bool) {
         _approve(msg.sender, _spender, _amount);
         return true;
@@ -118,7 +127,7 @@ contract OzUSD is IERC20, ReentrancyGuard, Initializable {
     ///         Reverts if the current allowance is less than the amount being subtracted.
     function decreaseAllowance(address _spender, uint256 _subtractedValue) external nonReentrant returns (bool) {
         uint256 currentAllowance = allowances[msg.sender][_spender];
-        require(currentAllowance >= _subtractedValue, "OzUSD: ALLOWANCE_BELOW_ZERO");
+        require(currentAllowance >= _subtractedValue, "OzUSD: Allowance below value.");
         _approve(msg.sender, _spender, currentAllowance - _subtractedValue);
         return true;
     }
@@ -136,17 +145,12 @@ contract OzUSD is IERC20, ReentrancyGuard, Initializable {
     }
 
     /// @notice Transfers `_sharesAmount` shares from `_sender` to `_recipient` and returns the equivalent ozUSD tokens.
-    /// @dev    Shares are transferred, and equivalent ozUSD tokens are calculated and returned.
     /// @param  _sender The address to transfer shares from.
     /// @param  _recipient The address to transfer shares to.
     /// @param  _sharesAmount The number of shares to transfer.
     /// @return uint256 The amount of ozUSD tokens equivalent to the transferred shares.
     /// @dev    The `_sharesAmount` argument is the amount of shares, not tokens.
-    function transferSharesFrom(
-        address _sender,
-        address _recipient,
-        uint256 _sharesAmount
-    )
+    function transferSharesFrom(address _sender, address _recipient, uint256 _sharesAmount)
         external
         nonReentrant
         returns (uint256)
@@ -162,33 +166,46 @@ contract OzUSD is IERC20, ReentrancyGuard, Initializable {
     /// @dev    Transfers USDX and mints new shares accordingly.
     /// @param  _to The address to receive the minted ozUSD.
     /// @param  _usdxAmount The amount of USDX to lock in exchange for ozUSD.
-    function mintOzUSD(address _to, uint256 _usdxAmount) external payable nonReentrant {
-        require(_usdxAmount != 0, "OzUSD: Amount zero");
-        require(msg.value == _usdxAmount, "OzUSD: Insufficient USDX transfer");
-
+    function mintOzUSD(address _to, uint256 _usdxAmount) external payable nonReentrant whenNotPaused {
+        require(_usdxAmount != 0, "OzUSD: Amount zero.");
+        require(msg.value == _usdxAmount, "OzUSD: Insufficient USDX transfer.");
         /// @dev Have to minus `_usdxAmount` from denominator given the transfer of funds has already occured
         uint256 sharesToMint = (_usdxAmount * totalShares) / (_getTotalPooledUSDX() - _usdxAmount);
-        uint256 newTotalShares = _mintShares(_to, sharesToMint);
-
-        _emitTransferAfterMintingShares(_to, newTotalShares);
+        _mintShares(_to, sharesToMint);
+        _emitTransferAfterMintingShares(_to, sharesToMint);
     }
 
     /// @notice Redeems ozUSD tokens by burning shares and redeeming the equivalent amount of `_ozUSDAmount` in USDX.
     /// @param  _from The address that owns the ozUSD to redeem.
     /// @param  _ozUSDAmount The amount of ozUSD to redeem.
-    /// @dev    Spender must approve contract, even if owner of coins
-    ///         Burns shares and transfers back the corresponding USDX.
+    /// @dev    Burns shares and transfers back the corresponding USDX.
     function redeemOzUSD(address _from, uint256 _ozUSDAmount) external nonReentrant {
-        require(_ozUSDAmount != 0, "OzUSD: Amount zero");
-        _spendAllowance(_from, msg.sender, _ozUSDAmount);
-
+        require(_ozUSDAmount != 0, "OzUSD: Amount zero.");
+        if (msg.sender != _from) _spendAllowance(_from, msg.sender, _ozUSDAmount);
         uint256 sharesToBurn = getSharesByPooledUSDX(_ozUSDAmount);
         _burnShares(_from, sharesToBurn);
+        (bool success,) = _from.call{value: _ozUSDAmount}("");
+        require(success, "OzUSD: Transfer Failed.");
+        _emitTransferEvents(_from, address(0), _ozUSDAmount, sharesToBurn);
+    }
 
-        (bool s,) = _from.call{ value: _ozUSDAmount }("");
-        assert(s);
+    receive() external payable {
+        require(msg.value >= 1 ether, "OzUSD: Must distribute at least one USDX.");
+        emit YieldDistributed(_getTotalPooledUSDX() - msg.value, _getTotalPooledUSDX());
+    }
 
-        _emitTransferEvents(msg.sender, address(0), _ozUSDAmount, sharesToBurn);
+    /// OWNER ///
+
+    /// @notice Distributes the yield to the protocol by updating the total pooled USDX balance.
+    function distributeYield() external payable nonReentrant onlyOwner {
+        (bool success,) = address(this).call{value: msg.value}("");
+        require(success, "OzUSD: Transfer failed.");
+    }
+
+    /// @notice This function allows the owner to pause or unpause this contract.
+    /// @param  _set The boolean for whether the contract is to be paused or unpaused. True for paused, false otherwise.
+    function setPaused(bool _set) external onlyOwner {
+        _set ? _pause() : _unpause();
     }
 
     /// VIEW ///
@@ -245,11 +262,7 @@ contract OzUSD is IERC20, ReentrancyGuard, Initializable {
         return address(this).balance;
     }
 
-    function _sharesOf(address _account) internal view returns (uint256) {
-        return shares[_account];
-    }
-
-    /// @dev Moves `_amount` tokens from `_sender` to `_recipient`.
+    /// @dev    Moves `_amount` tokens from `_sender` to `_recipient`.
     function _transfer(address _sender, address _recipient, uint256 _amount) internal {
         uint256 _sharesToTransfer = getSharesByPooledUSDX(_amount);
         _transferShares(_sender, _recipient, _sharesToTransfer);
@@ -257,9 +270,8 @@ contract OzUSD is IERC20, ReentrancyGuard, Initializable {
     }
 
     function _approve(address _owner, address _spender, uint256 _amount) internal {
-        require(_owner != address(0), "OzUSD: APPROVE_FROM_ZERO_ADDR");
-        require(_spender != address(0), "OzUSD: APPROVE_TO_ZERO_ADDR");
-
+        require(_owner != address(0), "OzUSD: Approve from zero address.");
+        require(_spender != address(0), "OzUSD: Approve to zero address.");
         allowances[_owner][_spender] = _amount;
         emit Approval(_owner, _spender, _amount);
     }
@@ -267,19 +279,18 @@ contract OzUSD is IERC20, ReentrancyGuard, Initializable {
     function _spendAllowance(address _owner, address _spender, uint256 _amount) internal {
         uint256 currentAllowance = allowances[_owner][_spender];
         if (currentAllowance != ~uint256(0)) {
-            require(currentAllowance >= _amount, "OzUSD: ALLOWANCE_EXCEEDED");
+            require(currentAllowance >= _amount, "OzUSD: Allowance exceeded.");
             _approve(_owner, _spender, currentAllowance - _amount);
         }
     }
 
     function _transferShares(address _sender, address _recipient, uint256 _sharesAmount) internal {
-        require(_sender != address(0), "OzUSD: TRANSFER_FROM_ZERO_ADDR");
-        require(_recipient != address(0), "OzUSD: TRANSFER_TO_ZERO_ADDR");
-        require(_recipient != address(this), "OzUSD: TRANSFER_TO_STETH_CONTRACT");
-
+        require(_sharesAmount != 0, "OzUSD: Transfer zero shares.");
+        require(_sender != address(0), "OzUSD: Transfer from zero address.");
+        require(_recipient != address(0), "OzUSD: Transfer to zero address.");
+        require(_recipient != address(this), "OzUSD: Transfer to this contract.");
         uint256 currentSenderShares = shares[_sender];
-        require(_sharesAmount <= currentSenderShares, "OzUSD: BALANCE_EXCEEDED");
-
+        require(_sharesAmount <= currentSenderShares, "OzUSD: Balance exceeded.");
         shares[_sender] = currentSenderShares - _sharesAmount;
         shares[_recipient] = shares[_recipient] + _sharesAmount;
     }
@@ -287,8 +298,7 @@ contract OzUSD is IERC20, ReentrancyGuard, Initializable {
     /// @notice Creates `_sharesAmount` shares and assigns them to `_recipient`, increasing the total amount of shares.
     /// @dev    This doesn't increase the token total supply.
     function _mintShares(address _recipient, uint256 _sharesAmount) internal returns (uint256 newTotalShares) {
-        require(_recipient != address(0), "OzUSD: MINT_TO_ZERO_ADDR");
-
+        require(_recipient != address(0), "OzUSD: Mint to zero address.");
         newTotalShares = totalShares + _sharesAmount;
         totalShares = newTotalShares;
         shares[_recipient] += _sharesAmount;
@@ -297,19 +307,15 @@ contract OzUSD is IERC20, ReentrancyGuard, Initializable {
     /// @notice Destroys `_sharesAmount` shares from `_account`'s holdings, decreasing the total amount of shares.
     /// @dev    This doesn't decrease the token total supply.
     function _burnShares(address _account, uint256 _sharesAmount) internal returns (uint256 newTotalShares) {
-        require(_account != address(0), "OzUSD: BURN_FROM_ZERO_ADDR");
-
+        require(_sharesAmount != 0, "OzUSD: Burn zero shares.");
+        require(_account != address(0), "OzUSD: Burn from zero address.");
         uint256 accountShares = shares[_account];
-        require(_sharesAmount <= accountShares, "OzUSD: BALANCE_EXCEEDED");
-
+        require(_sharesAmount <= accountShares, "OzUSD: Balance exceeded.");
         uint256 preRebaseTokenAmount = getPooledUSDXByShares(_sharesAmount);
-
         newTotalShares = totalShares - _sharesAmount;
         totalShares = newTotalShares;
         shares[_account] = accountShares - _sharesAmount;
-
         uint256 postRebaseTokenAmount = getPooledUSDXByShares(_sharesAmount);
-
         emit SharesBurnt(_account, preRebaseTokenAmount, postRebaseTokenAmount, _sharesAmount);
     }
 
@@ -318,7 +324,7 @@ contract OzUSD is IERC20, ReentrancyGuard, Initializable {
         emit TransferShares(_from, _to, _sharesAmount);
     }
 
-    /// @dev Emits {Transfer} and {TransferShares} events where `from` is 0 address. Indicates mint events.
+    /// @dev    Emits {Transfer} and {TransferShares} events where `from` is 0 address. Indicates mint events.
     function _emitTransferAfterMintingShares(address _to, uint256 _sharesAmount) internal {
         _emitTransferEvents(address(0), _to, getPooledUSDXByShares(_sharesAmount), _sharesAmount);
     }

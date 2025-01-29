@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import { OzUSD } from "./OzUSD.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import {OzUSD} from "./OzUSD.sol";
 
 /// @title  Wrapped Ozean USD (WozUSD)
 /// @notice A wrapper contract for OzUSD, providing auto-compounding functionality.
 /// @dev    The contract wraps ozUSD into wozUSD, which represents shares of ozUSD.
-///         This contract is inspired by Lido's wstETH contract: https://vscode.blockscan.com/ethereum/0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0
+///         This contract is inspired by Lido's wstETH contract:
+///         https://vscode.blockscan.com/ethereum/0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0
 contract WozUSD is ERC20, ReentrancyGuard {
-    /// @notice The instance of the ozUSD proxy contract.
+    /// @notice The instance of the ozUSD contract.
     OzUSD public immutable ozUSD;
 
     constructor(OzUSD _ozUSD) ERC20("Wrapped Ozean USD", "wozUSD") {
